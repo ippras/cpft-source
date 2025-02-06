@@ -1,7 +1,7 @@
 use self::{
-    control::Control,
     plot::PlotView,
     settings::{Kind, Settings},
+    state::State,
     table::TableView,
 };
 use crate::{
@@ -11,19 +11,26 @@ use crate::{
     },
     utils::save,
 };
-use egui::{Button, CursorIcon, Id, Response, RichText, Ui, Window, util::hash};
-use egui_phosphor::regular::{ARROWS_HORIZONTAL, CHART_BAR, EXCLUDE, FLOPPY_DISK, GEAR, TABLE};
+use egui::{
+    Button, CursorIcon, Id, Response, RichText, ScrollArea, Ui, Window, menu::bar, util::hash,
+};
+use egui_phosphor::regular::{
+    ARROWS_CLOCKWISE, ARROWS_HORIZONTAL, CHART_BAR, EXCLUDE, FLOPPY_DISK, GEAR, TABLE,
+};
 use metadata::MetaDataFrame;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::error;
+
+const ID_SOURCE: &str = "Source";
 
 /// Source pane
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct Pane {
     pub(crate) source: MetaDataFrame,
     pub(crate) target: DataFrame,
-    pub(crate) control: Control,
+    pub(crate) settings: Settings,
+    state: State,
 }
 
 impl Pane {
@@ -31,38 +38,78 @@ impl Pane {
         Self {
             source: frame,
             target: DataFrame::empty(),
-            control: Control::new(),
+            settings: Settings::new(),
+            state: State::new(),
         }
     }
 
+    pub(crate) const fn icon() -> &'static str {
+        TABLE
+    }
+
+    pub(crate) fn title(&self) -> String {
+        self.source.meta.title()
+    }
+
     pub(super) fn header(&mut self, ui: &mut Ui) -> Response {
-        ui.visuals_mut().button_frame = false;
-        let mut response = ui.heading(TABLE).on_hover_text(localize!("source"));
-        response |= ui.heading(self.source.meta.title());
+        bar(ui, |ui| {
+            ScrollArea::horizontal()
+                .show(ui, |ui| {
+                    ui.visuals_mut().button_frame = false;
+                    self.header_content(ui)
+                })
+                .inner
+        })
+        .inner
+    }
+
+    fn header_content(&mut self, ui: &mut Ui) -> Response {
+        // ui.visuals_mut().button_frame = false;
+        // let mut response = ui.heading(TABLE).on_hover_text(localize!("source"));
+        // response |= ui.heading(self.source.meta.title());
+        // response = response
+        //     .on_hover_text(format!("{:x}", hash(&self.source)))
+        //     .on_hover_cursor(CursorIcon::Grab);
+        // ui.separator();
+        let mut response = ui
+            .heading(Self::icon())
+            .on_hover_text(localize!("configuration"));
+        response |= ui.heading(self.title());
         response = response
-            .on_hover_text(format!("{:x}", hash(&self.source)))
+            .on_hover_text(format!("{:x}", self.hash()))
             .on_hover_cursor(CursorIcon::Grab);
+        ui.separator();
+        // Reset
+        if ui
+            .button(RichText::new(ARROWS_CLOCKWISE).heading())
+            .clicked()
+        {
+            self.state.reset_table_state = true;
+        }
         ui.separator();
         // Resize
         ui.toggle_value(
-            &mut self.control.settings.resizable,
+            &mut self.settings.resizable,
             RichText::new(ARROWS_HORIZONTAL).heading(),
         )
         .on_hover_text(localize!("resize"));
         ui.separator();
         // Settings
-        ui.toggle_value(&mut self.control.open, RichText::new(GEAR).heading());
+        ui.toggle_value(
+            &mut self.state.open_settings_window,
+            RichText::new(GEAR).heading(),
+        );
         ui.separator();
         // Kind
-        match self.control.settings.kind {
+        match self.settings.kind {
             Kind::Plot => {
                 if ui.button(RichText::new(TABLE).heading()).clicked() {
-                    self.control.settings.kind = Kind::Table;
+                    self.settings.kind = Kind::Table;
                 }
             }
             Kind::Table => {
                 if ui.button(RichText::new(CHART_BAR).heading()).clicked() {
-                    self.control.settings.kind = Kind::Plot;
+                    self.settings.kind = Kind::Plot;
                 }
             }
         };
@@ -70,7 +117,7 @@ impl Pane {
         // Distance
         if ui
             .add_enabled(
-                self.control.settings.kind == Kind::Table,
+                self.settings.kind == Kind::Table,
                 Button::new(RichText::new(EXCLUDE).heading()),
             )
             .clicked()
@@ -90,7 +137,10 @@ impl Pane {
             .on_hover_text(&name)
             .clicked()
         {
-            if let Err(error) = save(&name, Some(&self.source.meta), &mut self.target) {
+            if let Err(error) = save(
+                &name,
+                MetaDataFrame::new(&self.source.meta, &mut self.target),
+            ) {
                 error!(%error);
             }
         }
@@ -103,29 +153,33 @@ impl Pane {
         self.target = ui.memory_mut(|memory| {
             memory.caches.cache::<SourceComputed>().get(SourceKey {
                 data_frame: &self.source.data,
-                settings: &self.control.settings,
+                settings: &self.settings,
             })
         });
-        match self.control.settings.kind {
-            Kind::Plot => PlotView::new(&self.target, &self.control.settings).show(ui),
-            Kind::Table => TableView::new(&self.target, &self.control.settings).show(ui),
+        match self.settings.kind {
+            Kind::Plot => PlotView::new(&self.target, &self.settings).show(ui),
+            Kind::Table => TableView::new(&self.target, &self.settings, &mut self.state).show(ui),
         };
     }
 
     fn window(&mut self, ui: &mut Ui) {
         Window::new(format!("{GEAR} Source settings"))
-            .id(ui.auto_id_with("SourceSettings"))
-            .open(&mut self.control.open)
+            .id(ui.auto_id_with(ID_SOURCE))
+            .open(&mut self.state.open_settings_window)
             .show(ui.ctx(), |ui| {
-                if let Err(error) = self.control.settings.show(ui, &self.source.data) {
+                if let Err(error) = self.settings.show(ui, &self.source.data) {
                     error!(%error);
                 }
             });
+    }
+
+    pub(super) fn hash(&self) -> u64 {
+        hash(&self.source)
     }
 }
 
 pub(crate) mod settings;
 
-mod control;
 mod plot;
+mod state;
 mod table;

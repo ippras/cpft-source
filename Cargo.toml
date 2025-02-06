@@ -1,30 +1,31 @@
 [package]
 name = "cpft"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
 anyhow = "1.0.95"
-eframe = { version = "0.30.0", default-features = false, features = [
+eframe = { version = "0.31.0", default-features = false, features = [
     "accesskit",
     "default_fonts",
     "glow",
     "persistence",
     "wayland",
 ] }
-egui = "0.30.0"
-egui-phosphor = "0.8.0"
+egui = "0.31.0"
+# egui-phosphor = "0.8.0"
+egui-phosphor = { git = "https://github.com/bircni/egui-phosphor", branch = "patch/egui-version" }
 egui_ext = { git = "https://github.com/kgv/egui_ext" }
-egui_extras = "0.30.0"
-egui_plot = "0.30.0"
-egui_table = "0.2.0"
-egui_tiles = "0.11.0"
+egui_extras = "0.31.0"
+egui_plot = "0.31.0"
+egui_table = "0.3.0"
+egui_tiles = "0.12.0"
 egui_tiles_ext = { git = "https://github.com/kgv/egui_tiles_ext" }
 itertools = "0.14.0"
 lipid = { git = "https://github.com/ippras/lipid" }
 log = "0.4.25"
 metadata = { git = "https://github.com/ippras/metadata" }
-polars = { version = "0.45.1", features = [
+polars = { version = "0.46.0", features = [
     "abs",
     "cross_join",
     "diagonal_concat",
@@ -59,16 +60,12 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 # web
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
-getrandom = { version = "0.2.15", features = ["js"] }
+getrandom = { version = "0.3.1" }
 gloo-utils = "0.2.0"
 js-sys = "0.3.77"
 tracing-wasm = "0.2.1"
 wasm-bindgen-futures = "0.4.50"
-web-sys = { version = "0.3.77", features = [
-    "FilePropertyBag",
-    "HtmlAnchorElement",
-    "Url",
-] }
+web-sys = { version = "0.3.77", features = ["FilePropertyBag"] }
 
 [profile.release]
 opt-level = 2 # fast and small wasm

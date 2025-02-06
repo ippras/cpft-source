@@ -92,7 +92,7 @@ impl Settings {
                             let current_value = &mut self.relative;
                             let fatty_acid = data_frame["FattyAcid"].unique()?;
                             let fatty_acid = fatty_acid
-                                .filter(&fatty_acid.fatty_acid().saturated()?)?
+                                .filter(&fatty_acid.fatty_acid().saturated_filter()?)?
                                 .sort(Default::default())?
                                 .fatty_acid();
                             for index in 0..fatty_acid.len() {

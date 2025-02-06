@@ -161,8 +161,8 @@ impl TableView<'_> {
 
 impl TableDelegate for TableView<'_> {
     fn header_cell_ui(&mut self, ui: &mut Ui, cell: &HeaderCellInfo) {
-        Frame::none()
-            .inner_margin(Margin::symmetric(MARGIN.x, MARGIN.y))
+        Frame::new()
+            .inner_margin(Margin::from(MARGIN))
             .show(ui, |ui| {
                 self.header_cell_content_ui(ui, cell.row_nr, cell.col_range.clone())
             });
@@ -173,8 +173,8 @@ impl TableDelegate for TableView<'_> {
             ui.painter()
                 .rect_filled(ui.max_rect(), 0.0, ui.visuals().faint_bg_color);
         }
-        Frame::none()
-            .inner_margin(Margin::symmetric(MARGIN.x, MARGIN.y))
+        Frame::new()
+            .inner_margin(Margin::from(MARGIN))
             .show(ui, |ui| {
                 self.body_cell_content_ui(ui, cell.row_nr as _, cell.col_nr..cell.col_nr + 1)
                     .unwrap()

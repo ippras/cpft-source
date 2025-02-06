@@ -1,7 +1,9 @@
-use super::Settings;
+use super::{ID_SOURCE, Settings, State};
 use crate::app::panes::{MARGIN, widgets::float::FloatValue};
 use egui::{Frame, Grid, Id, Margin, TextStyle, TextWrapMode, Ui};
-use egui_table::{AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, Table, TableDelegate};
+use egui_table::{
+    AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, Table, TableDelegate, TableState,
+};
 use lipid::fatty_acid::{
     display::{COMMON, DisplayWithOptions as _},
     polars::ColumnExt,
@@ -27,17 +29,23 @@ const TOP: &[Range<usize>] = &[
 ];
 
 /// Table view
-#[derive(Clone, Debug)]
-pub(crate) struct TableView<'a> {
-    pub(crate) data_frame: &'a DataFrame,
-    pub(crate) settings: &'a Settings,
+#[derive(Debug)]
+pub(super) struct TableView<'a> {
+    data_frame: &'a DataFrame,
+    settings: &'a Settings,
+    state: &'a mut State,
 }
 
 impl<'a> TableView<'a> {
-    pub(crate) const fn new(data_frame: &'a DataFrame, settings: &'a Settings) -> Self {
+    pub(super) const fn new(
+        data_frame: &'a DataFrame,
+        settings: &'a Settings,
+        state: &'a mut State,
+    ) -> Self {
         Self {
             data_frame,
             settings,
+            state,
         }
     }
 }
@@ -45,7 +53,12 @@ impl<'a> TableView<'a> {
 impl TableView<'_> {
     pub(super) fn show(&mut self, ui: &mut Ui) {
         ui.visuals_mut().collapsing_header_frame = true;
-        let id_salt = Id::new("SourceTable");
+        let id_salt = Id::new(ID_SOURCE).with("Table");
+        if self.state.reset_table_state {
+            let id = TableState::id(ui, Id::new(id_salt));
+            TableState::reset(ui.ctx(), id);
+            self.state.reset_table_state = false;
+        }
         let height = ui.text_style_height(&TextStyle::Heading) + 2.0 * MARGIN.y;
         let num_rows = self.data_frame.height() as _;
         let num_columns = LEN;
@@ -295,8 +308,8 @@ impl TableView<'_> {
 
 impl TableDelegate for TableView<'_> {
     fn header_cell_ui(&mut self, ui: &mut Ui, cell: &HeaderCellInfo) {
-        Frame::none()
-            .inner_margin(Margin::symmetric(MARGIN.x, MARGIN.y))
+        Frame::new()
+            .inner_margin(Margin::from(MARGIN))
             .show(ui, |ui| {
                 self.header_cell_content_ui(ui, cell.row_nr, cell.col_range.clone())
             });
@@ -307,8 +320,8 @@ impl TableDelegate for TableView<'_> {
             ui.painter()
                 .rect_filled(ui.max_rect(), 0.0, ui.visuals().faint_bg_color);
         }
-        Frame::none()
-            .inner_margin(Margin::symmetric(MARGIN.x, MARGIN.y))
+        Frame::new()
+            .inner_margin(Margin::from(MARGIN))
             .show(ui, |ui| {
                 self.body_cell_content_ui(ui, cell.row_nr as _, cell.col_nr..cell.col_nr + 1)
                     .unwrap()

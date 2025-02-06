@@ -56,7 +56,10 @@ impl Pane {
             .on_hover_text(&name)
             .clicked()
         {
-            if let Err(error) = save(&name, Some(&self.source.meta), &mut self.target) {
+            if let Err(error) = save(
+                &name,
+                MetaDataFrame::new(&self.source.meta, &mut self.target),
+            ) {
                 error!(%error);
             }
         }

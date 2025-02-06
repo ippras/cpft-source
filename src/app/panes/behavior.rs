@@ -1,8 +1,7 @@
-use super::{MARGIN, Pane};
-use egui::{Frame, Margin, RichText, Sides, Ui, WidgetText};
+use super::Pane;
+use egui::{CentralPanel, RichText, Sides, TopBottomPanel, Ui, WidgetText};
 use egui_phosphor::regular::X;
-use egui_tiles::{Tile, TileId, Tiles, UiResponse};
-use egui_tiles_ext::ContainerExt as _;
+use egui_tiles::{TileId, UiResponse};
 use serde::{Deserialize, Serialize};
 
 /// Behavior
@@ -17,29 +16,27 @@ impl egui_tiles::Behavior<Pane> for Behavior {
         pane.title().into()
     }
 
-    fn tab_title_for_tile(&mut self, tiles: &Tiles<Pane>, tile_id: TileId) -> WidgetText {
-        if let Some(tile) = tiles.get(tile_id) {
-            match tile {
-                Tile::Pane(pane) => self.tab_title_for_pane(pane),
-                Tile::Container(container) => {
-                    if let Some(pane) = container.find_child_pane(tiles) {
-                        format!("{}, ...", self.tab_title_for_pane(pane).text()).into()
-                    } else {
-                        format!("{:?}", container.kind()).into()
-                    }
-                }
-            }
-        } else {
-            "MISSING TILE".into()
-        }
-    }
+    // fn tab_title_for_tile(&mut self, tiles: &Tiles<Pane>, tile_id: TileId) -> WidgetText {
+    //     if let Some(tile) = tiles.get(tile_id) {
+    //         match tile {
+    //             Tile::Pane(pane) => self.tab_title_for_pane(pane),
+    //             Tile::Container(container) => {
+    //                 if let Some(pane) = container.find_child_pane(tiles) {
+    //                     format!("{}, ...", self.tab_title_for_pane(pane).text()).into()
+    //                 } else {
+    //                     format!("{:?}", container.kind()).into()
+    //                 }
+    //             }
+    //         }
+    //     } else {
+    //         "MISSING TILE".into()
+    //     }
+    // }
 
     fn pane_ui(&mut self, ui: &mut Ui, tile_id: TileId, pane: &mut Pane) -> UiResponse {
-        Frame::none()
-            .inner_margin(Margin::symmetric(MARGIN.x, MARGIN.y))
-            .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
-            .show(ui, |ui| {
-                let response = Sides::new()
+        let response = TopBottomPanel::top(ui.auto_id_with("TopPanel"))
+            .show_inside(ui, |ui| {
+                Sides::new()
                     .show(
                         ui,
                         |ui| pane.header(ui),
@@ -50,14 +47,16 @@ impl egui_tiles::Behavior<Pane> for Behavior {
                             }
                         },
                     )
-                    .0;
-                pane.body(ui);
-                if response.dragged() {
-                    UiResponse::DragStarted
-                } else {
-                    UiResponse::None
-                }
+                    .0
             })
-            .inner
+            .inner;
+        CentralPanel::default().show_inside(ui, |ui| {
+            pane.body(ui);
+        });
+        if response.dragged() {
+            UiResponse::DragStarted
+        } else {
+            UiResponse::None
+        }
     }
 }

@@ -4,8 +4,8 @@ use anyhow::Result;
 use data::Data;
 use eframe::{APP_KEY, get_value, set_value};
 use egui::{
-    Align, Align2, CentralPanel, Color32, FontDefinitions, Grid, Id, Label, LayerId, Layout, Order,
-    RichText, ScrollArea, TextStyle, TopBottomPanel, menu::bar, warn_if_debug_build,
+    Align, Align2, CentralPanel, Color32, FontDefinitions, Frame, Grid, Id, Label, LayerId, Layout,
+    Order, RichText, ScrollArea, TextStyle, TopBottomPanel, menu::bar, warn_if_debug_build,
 };
 use egui_ext::{DroppedFileExt, HoveredFileExt, LightDarkButton};
 use egui_phosphor::{
@@ -183,7 +183,7 @@ impl App {
 
     // Central panel
     fn central_panel(&mut self, ctx: &egui::Context) {
-        CentralPanel::default().show(ctx, |ui| {
+        CentralPanel::default().frame(Frame::new()).show(ctx, |ui| {
             self.tree.ui(&mut self.behavior, ui);
             if let Some(id) = self.behavior.close.take() {
                 self.tree.tiles.remove(id);
@@ -193,7 +193,7 @@ impl App {
 
     // Top panel
     fn top_panel(&mut self, ctx: &egui::Context) {
-        TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        TopBottomPanel::top("TopPanel").show(ctx, |ui| {
             bar(ui, |ui| {
                 ScrollArea::horizontal().show(ui, |ui| {
                     ui.light_dark_button(ICON_SIZE);
