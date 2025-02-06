@@ -60,12 +60,9 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 # web
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
-# getrandom = { version = "0.3.1", features = ["wasm_js"] }
-gloo-utils = "0.2.0"
-js-sys = "0.3.77"
 tracing-wasm = "0.2.1"
 wasm-bindgen-futures = "0.4.50"
-web-sys = { version = "0.3.77", features = ["FilePropertyBag"] }
+web-sys = "0.3.77"
 
 [profile.release]
 opt-level = 2 # fast and small wasm
