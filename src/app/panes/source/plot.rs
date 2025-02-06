@@ -2,7 +2,7 @@ use super::Settings;
 use crate::special::data_frame::DataFrameExt;
 use egui::{Id, Ui, emath::Float, util::hash};
 use egui_ext::color;
-use egui_plot::{Line, LineStyle, MarkerShape, Plot, PlotItem, PlotPoints, Points};
+use egui_plot::{Legend, Line, LineStyle, MarkerShape, Plot, PlotItem, PlotPoints, Points};
 use itertools::izip;
 use lipid::fatty_acid::{
     FattyAcidExt,
@@ -49,7 +49,7 @@ impl PlotView<'_> {
             // .allow_scroll(context.settings.visualization.scroll)
             ;
         if self.settings.legend {
-            plot = plot.legend(Default::default());
+            plot = plot.legend(Legend::default().follow_insertion_order(true));
         }
         // let scale = plot.transform.dvalue_dpos();
         // let x_decimals = ((-scale[0].abs().log10()).ceil().at_least(0.0) as usize).clamp(1, 6);
