@@ -18,7 +18,7 @@ jobs:
       - name: Download and install trunk
         run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Build
-        run: ./trunk build --release --public-url=$public_url
+        run: ./trunk build --release --filehash=false --public-url=$public_url
         env:
           public_url: "https://${{ github.repository_owner }}.github.io/cpft"
       - name: Deploy
