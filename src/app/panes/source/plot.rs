@@ -1,5 +1,4 @@
 use super::Settings;
-use crate::special::data_frame::DataFrameExt;
 use egui::{Id, Ui, emath::Float, util::hash};
 use egui_ext::color;
 use egui_plot::{Legend, Line, LineStyle, MarkerShape, Plot, PlotItem, PlotPoints, Points};
@@ -10,7 +9,6 @@ use lipid::fatty_acid::{
     polars::DataFrameExt as _,
 };
 use polars::prelude::*;
-use std::iter::zip;
 use tracing::error;
 
 /// Plot view

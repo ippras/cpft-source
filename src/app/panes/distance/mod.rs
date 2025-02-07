@@ -1,4 +1,4 @@
-use self::{control::Control, settings::Settings};
+use self::{settings::Settings, state::State, table::TableView};
 use crate::{
     app::{
         computers::{DistanceComputed, DistanceKey},
@@ -7,19 +7,21 @@ use crate::{
     utils::save,
 };
 use egui::{CursorIcon, Response, RichText, Ui, Window, util::hash};
-use egui_phosphor::regular::{ARROWS_HORIZONTAL, EXCLUDE, FLOPPY_DISK, GEAR};
+use egui_phosphor::regular::{ARROWS_CLOCKWISE, ARROWS_HORIZONTAL, EXCLUDE, FLOPPY_DISK, GEAR};
 use metadata::MetaDataFrame;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
-use table::TableView;
 use tracing::error;
+
+const ID_SOURCE: &str = "Source";
 
 /// Distance pane
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct Pane {
     pub(crate) source: MetaDataFrame,
     pub(crate) target: DataFrame,
-    pub(crate) control: Control,
+    pub(crate) settings: Settings,
+    state: State,
 }
 
 impl Pane {
@@ -27,27 +29,49 @@ impl Pane {
         Self {
             source: frame,
             target: DataFrame::empty(),
-            control: Control::new(),
+            settings: Settings::new(),
+            state: State::new(),
         }
+    }
+
+    pub(crate) const fn icon() -> &'static str {
+        EXCLUDE
+    }
+
+    pub(crate) fn title(&self) -> String {
+        self.source.meta.title()
     }
 
     pub(super) fn header(&mut self, ui: &mut Ui) -> Response {
         ui.visuals_mut().button_frame = false;
-        let mut response = ui.heading(EXCLUDE).on_hover_text(localize!("distance"));
-        response |= ui.heading(self.source.meta.title());
+        let mut response = ui
+            .heading(Self::icon())
+            .on_hover_text(localize!("distance"));
+        response |= ui.heading(self.title());
         response = response
-            .on_hover_text(format!("{:x}", hash(&self.source)))
+            .on_hover_text(format!("{:x}", self.hash()))
             .on_hover_cursor(CursorIcon::Grab);
+        ui.separator();
+        // Reset
+        if ui
+            .button(RichText::new(ARROWS_CLOCKWISE).heading())
+            .clicked()
+        {
+            self.state.reset_table_state = true;
+        }
         ui.separator();
         // Resize
         ui.toggle_value(
-            &mut self.control.settings.resizable,
+            &mut self.settings.resizable,
             RichText::new(ARROWS_HORIZONTAL).heading(),
         )
         .on_hover_text(localize!("resize"));
         ui.separator();
         // Settings
-        ui.toggle_value(&mut self.control.open, RichText::new(GEAR).heading());
+        ui.toggle_value(
+            &mut self.state.open_settings_window,
+            RichText::new(GEAR).heading(),
+        );
         ui.separator();
         // Save
         let name = format!("{}.distance.ipc", self.source.meta.title());
@@ -72,23 +96,27 @@ impl Pane {
         self.target = ui.memory_mut(|memory| {
             memory.caches.cache::<DistanceComputed>().get(DistanceKey {
                 data_frame: &self.source.data,
-                settings: &self.control.settings,
+                settings: &self.settings,
             })
         });
-        TableView::new(&self.target, &self.control.settings).show(ui);
+        TableView::new(&self.target, &self.settings, &mut self.state).show(ui);
     }
 
     fn window(&mut self, ui: &mut Ui) {
         Window::new(format!("{GEAR} Distance settings"))
-            .id(ui.auto_id_with("DistanceSettings"))
-            .open(&mut self.control.open)
+            .id(ui.auto_id_with(ID_SOURCE))
+            .open(&mut self.state.open_settings_window)
             .show(ui.ctx(), |ui| {
-                self.control.settings.show(ui, &self.source.data);
+                self.settings.show(ui, &self.source.data);
             });
+    }
+
+    pub(super) fn hash(&self) -> u64 {
+        hash(&self.source)
     }
 }
 
 pub(crate) mod settings;
 
-mod control;
+mod state;
 mod table;

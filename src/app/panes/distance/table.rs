@@ -1,7 +1,9 @@
-use super::Settings;
+use super::{ID_SOURCE, Settings, State};
 use crate::app::panes::{MARGIN, widgets::float::FloatValue};
 use egui::{Frame, Id, Margin, TextStyle, TextWrapMode, Ui};
-use egui_table::{AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, Table, TableDelegate};
+use egui_table::{
+    AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, Table, TableDelegate, TableState,
+};
 use lipid::fatty_acid::{
     display::{COMMON, DisplayWithOptions as _},
     polars::ColumnExt,
@@ -18,25 +20,35 @@ const ECL: Range<usize> = TIME.end..TIME.end + 1;
 const LEN: usize = ECL.end;
 
 /// Table view
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct TableView<'a> {
     pub(crate) data_frame: &'a DataFrame,
     pub(crate) settings: &'a Settings,
+    state: &'a mut State,
 }
 
 impl<'a> TableView<'a> {
-    pub(crate) const fn new(data_frame: &'a DataFrame, settings: &'a Settings) -> Self {
+    pub(crate) const fn new(
+        data_frame: &'a DataFrame,
+        settings: &'a Settings,
+        state: &'a mut State,
+    ) -> Self {
         Self {
             data_frame,
             settings,
+            state,
         }
     }
 }
 
 impl TableView<'_> {
     pub(super) fn show(&mut self, ui: &mut Ui) {
-        ui.visuals_mut().collapsing_header_frame = true;
-        let id_salt = Id::new("DistanceTable");
+        let id_salt = Id::new(ID_SOURCE).with("Table");
+        if self.state.reset_table_state {
+            let id = TableState::id(ui, Id::new(id_salt));
+            TableState::reset(ui.ctx(), id);
+            self.state.reset_table_state = false;
+        }
         let height = ui.text_style_height(&TextStyle::Heading) + 2.0 * MARGIN.y;
         let num_rows = self.data_frame.height() as _;
         let num_columns = LEN;

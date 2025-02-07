@@ -52,7 +52,6 @@ impl<'a> TableView<'a> {
 
 impl TableView<'_> {
     pub(super) fn show(&mut self, ui: &mut Ui) {
-        ui.visuals_mut().collapsing_header_frame = true;
         let id_salt = Id::new(ID_SOURCE).with("Table");
         if self.state.reset_table_state {
             let id = TableState::id(ui, Id::new(id_salt));

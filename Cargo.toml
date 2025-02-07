@@ -13,8 +13,7 @@ eframe = { version = "0.31.0", default-features = false, features = [
     "wayland",
 ] }
 egui = "0.31.0"
-# egui-phosphor = "0.8.0"
-egui-phosphor = { git = "https://github.com/bircni/egui-phosphor", branch = "patch/egui-version" }
+egui-phosphor = "0.9.0"
 egui_ext = { git = "https://github.com/kgv/egui_ext" }
 egui_extras = "0.31.0"
 egui_plot = "0.31.0"

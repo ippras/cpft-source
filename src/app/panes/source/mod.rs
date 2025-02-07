@@ -11,9 +11,7 @@ use crate::{
     },
     utils::save,
 };
-use egui::{
-    Button, CursorIcon, Id, Response, RichText, ScrollArea, Ui, Window, menu::bar, util::hash,
-};
+use egui::{Button, CursorIcon, Id, Response, RichText, Ui, Window, util::hash};
 use egui_phosphor::regular::{
     ARROWS_CLOCKWISE, ARROWS_HORIZONTAL, CHART_BAR, EXCLUDE, FLOPPY_DISK, GEAR, TABLE,
 };
@@ -52,28 +50,7 @@ impl Pane {
     }
 
     pub(super) fn header(&mut self, ui: &mut Ui) -> Response {
-        bar(ui, |ui| {
-            ScrollArea::horizontal()
-                .show(ui, |ui| {
-                    ui.visuals_mut().button_frame = false;
-                    self.header_content(ui)
-                })
-                .inner
-        })
-        .inner
-    }
-
-    fn header_content(&mut self, ui: &mut Ui) -> Response {
-        // ui.visuals_mut().button_frame = false;
-        // let mut response = ui.heading(TABLE).on_hover_text(localize!("source"));
-        // response |= ui.heading(self.source.meta.title());
-        // response = response
-        //     .on_hover_text(format!("{:x}", hash(&self.source)))
-        //     .on_hover_cursor(CursorIcon::Grab);
-        // ui.separator();
-        let mut response = ui
-            .heading(Self::icon())
-            .on_hover_text(localize!("configuration"));
+        let mut response = ui.heading(Self::icon()).on_hover_text(localize!("source"));
         response |= ui.heading(self.title());
         response = response
             .on_hover_text(format!("{:x}", self.hash()))
