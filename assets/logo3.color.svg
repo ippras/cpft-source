@@ -1,11 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 409 409"><rect width="256" height="256" fill="none"/>
 
 <style>
-    @media (prefers-color-scheme: dark) {
-        #logo {
-            filter: invert(1) brightness(2);
-        }
-    }
     .base {
         fill: none;
         stroke: currentColor;
@@ -13,7 +8,17 @@
         stroke-linejoin: round;
         stroke-width: 8;
     }
+    #chromatogram {
+        <!-- 96,187,70 -> #60bb46 -->
+        stroke: #60bb46;
+    }
+    #masspectrum {
+        <!-- 26,106,42 -> #1a6a2a -->
+        stroke: #1a6a2a;
+    }
     #pentagon {
+        <!-- 45,139,58 -> #2d8b3a -->
+        stroke: #2d8b3a;
         stroke-width: 16;
     }
 </style>
