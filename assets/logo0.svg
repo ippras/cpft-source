@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 409 409"><rect width="256" height="256" fill="none"/>
+
+<g id="pentagon" transform="translate(205, 205)">
+    <polyline id="line" points="-72 107 -64 96 64 96 72 107" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+    <use xlink:href="#line" transform="rotate(72)"/>
+    <use xlink:href="#line" transform="rotate(144)"/>
+    <use xlink:href="#line" transform="rotate(216)"/>
+    <use xlink:href="#line" transform="rotate(288)"/>
+
+    <polyline id="chromatogram" points="-96 0 -72 0 -60 -48 -48 0 -32 0 -16 -96 0 0 8 0 16 -72 24 0 32 0 48 -32 64 0 96 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+
+    <polyline id="masspectrum" points="
+    -96 16
+    -72 16 -72 32 -72 16
+    -56 16 -56 56 -56 16
+    -44 16 -44 24 -44 16
+    -32 16 -32 48 -32 16
+    -16 16 -16 72 -16 16
+    20 16 20 24 20 16
+    32 16 32 32 32 16
+    64 16 64 48 64 16
+    96 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+</g>
+
+</svg>
