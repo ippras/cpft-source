@@ -183,12 +183,14 @@ impl App {
 
     // Central panel
     fn central_panel(&mut self, ctx: &egui::Context) {
-        CentralPanel::default().frame(Frame::new()).show(ctx, |ui| {
-            self.tree.ui(&mut self.behavior, ui);
-            if let Some(id) = self.behavior.close.take() {
-                self.tree.tiles.remove(id);
-            }
-        });
+        CentralPanel::default()
+            .frame(Frame::central_panel(&ctx.style()).inner_margin(0))
+            .show(ctx, |ui| {
+                self.tree.ui(&mut self.behavior, ui);
+                if let Some(id) = self.behavior.close.take() {
+                    self.tree.tiles.remove(id);
+                }
+            });
     }
 
     // Top panel
