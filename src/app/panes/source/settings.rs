@@ -1,14 +1,14 @@
 use crate::{
-    app::{MAX_PRECISION, localize, text::Text},
+    app::{MAX_PRECISION, text::Text},
     special::{column::mode::ColumnExt as _, data_frame::DataFrameExt as _},
 };
 use egui::{ComboBox, Grid, RichText, Slider, Ui, emath::Float};
 use egui_ext::LabeledSeparator;
+use egui_l20n::{ResponseExt, UiExt as _};
 use egui_phosphor::regular::TRASH;
-use lipid::fatty_acid::{
-    FattyAcid,
-    display::{COMMON, DisplayWithOptions},
-    polars::column::ColumnExt as _,
+use lipid::{
+    fatty_acid::display::{COMMON, DisplayWithOptions as _},
+    prelude::*,
 };
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -59,27 +59,28 @@ impl Settings {
         Grid::new("calculation")
             .show(ui, |ui| {
                 // Precision floats
-                ui.label(localize!("precision"));
+                ui.label(ui.localize("precision"));
                 ui.add(Slider::new(&mut self.precision, 0..=MAX_PRECISION));
                 ui.end_row();
 
                 // Sticky columns
-                ui.label(localize!("sticky"));
+                ui.label(ui.localize("sticky"));
                 ui.add(Slider::new(&mut self.sticky, 0..=data_frame.width()));
                 ui.end_row();
 
                 // Truncate titles
-                ui.label(localize!("truncate"));
+                ui.label(ui.localize("truncate"));
                 ui.checkbox(&mut self.truncate, "");
                 ui.end_row();
 
                 // Calculate
                 ui.separator();
-                ui.labeled_separator(RichText::new("Calculate").heading());
+                ui.labeled_separator(RichText::new(ui.localize("calculate")).heading());
                 ui.end_row();
 
                 // Relative
-                ui.label("Relative").on_hover_text("Relative fatty acid");
+                ui.label(ui.localize("relative"))
+                    .on_hover_localized("relative.hover");
                 ui.horizontal(|ui| {
                     let selected_text = self
                         .relative
@@ -92,9 +93,9 @@ impl Settings {
                             let current_value = &mut self.relative;
                             let fatty_acid = data_frame["FattyAcid"].unique()?;
                             let fatty_acid = fatty_acid
-                                .filter(&fatty_acid.fatty_acid().saturated_filter()?)?
+                                .filter(&fatty_acid.fa().saturated_filter()?)?
                                 .sort(Default::default())?
-                                .fatty_acid();
+                                .fa();
                             for index in 0..fatty_acid.len() {
                                 if let Some(selected_value) = fatty_acid.get(index)? {
                                     let text = (&selected_value).display(COMMON).to_string();
@@ -111,22 +112,29 @@ impl Settings {
 
                 // DDOF
                 // https://numpy.org/devdocs/reference/generated/numpy.std.html
-                ui.label("DDOF");
+                ui.label(ui.localize("delta_degrees_of_freedom.abbreviation"))
+                    .on_hover_localized("delta_degrees_of_freedom")
+                    .on_hover_ui(|ui| {
+                        ui.hyperlink(
+                            "https://numpy.org/devdocs/reference/generated/numpy.std.html",
+                        );
+                    });
                 ui.add(Slider::new(&mut self.ddof, 0..=2));
                 ui.end_row();
 
                 // Logarithmic
-                ui.label(localize!("logarithmic"));
+                ui.label(ui.localize("logarithmic"));
                 ui.checkbox(&mut self.logarithmic, "");
                 ui.end_row();
 
                 // Filter
                 ui.separator();
-                ui.labeled_separator(RichText::new("Filter").heading());
+                ui.labeled_separator(RichText::new(ui.localize("filter")).heading());
                 ui.end_row();
 
                 // Onset temperature filter
-                ui.label("Onset").on_hover_text("Onset temperature");
+                ui.label(ui.localize("onset_temperature"))
+                    .on_hover_localized("onset_temperature.hover");
                 ui.horizontal(|ui| -> PolarsResult<()> {
                     ComboBox::from_id_salt("OnsetTemperatureFilter")
                         .selected_text(format!("{:?}", self.filter.mode.onset_temperature))
@@ -154,7 +162,8 @@ impl Settings {
                 ui.end_row();
 
                 // Temperature step filter
-                ui.label("Step").on_hover_text("Temperature step");
+                ui.label(ui.localize("temperature_step"))
+                    .on_hover_localized("temperature_step.hover");
                 ui.horizontal(|ui| -> PolarsResult<()> {
                     ComboBox::from_id_salt("TemperatureStepFilter")
                         .selected_text(format!("{:?}", self.filter.mode.temperature_step))
@@ -180,7 +189,8 @@ impl Settings {
                 ui.end_row();
 
                 // Fatty acids filter
-                ui.label("Fatty acids");
+                ui.label(ui.localize("fatty_acids"))
+                    .on_hover_localized("fatty_acids.hover");
                 // let text = AnyValue::List(Series::from_iter(
                 //     self.filter
                 //         .fatty_acids
@@ -195,7 +205,7 @@ impl Settings {
                             let fatty_acid = data_frame["FattyAcid"]
                                 .unique()?
                                 .sort(Default::default())?
-                                .fatty_acid();
+                                .fa();
                             for index in 0..fatty_acid.len() {
                                 if let Ok(Some(fatty_acid)) = fatty_acid.get(index) {
                                     let contains = self.filter.fatty_acids.contains(&fatty_acid);
@@ -225,44 +235,51 @@ impl Settings {
 
                 // Sort
                 ui.separator();
-                ui.labeled_separator(RichText::new("Sort").heading());
+                ui.labeled_separator(RichText::new(ui.localize("sort")).heading());
                 ui.end_row();
 
-                ui.label("Sort");
+                ui.label(ui.localize("sort"))
+                    .on_hover_localized("sort.hover");
                 ComboBox::from_id_salt(ui.next_auto_id())
-                    .selected_text(format!("{:?}", self.sort))
+                    .selected_text(ui.localize(self.sort.text()))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.sort,
                             Sort::FattyAcid,
-                            Sort::FattyAcid.text(),
+                            ui.localize(Sort::FattyAcid.text()),
                         )
-                        .on_hover_text(Sort::FattyAcid.hover_text());
-                        ui.selectable_value(&mut self.sort, Sort::Time, Sort::Time.text())
-                            .on_hover_text(Sort::Time.hover_text());
-                    });
+                        .on_hover_localized(Sort::FattyAcid.hover_text());
+                        ui.selectable_value(
+                            &mut self.sort,
+                            Sort::Time,
+                            ui.localize(Sort::Time.text()),
+                        )
+                        .on_hover_localized(Sort::Time.hover_text());
+                    })
+                    .response
+                    .on_hover_localized(self.sort.hover_text());
                 ui.end_row();
 
                 // Order
-                ui.label("Order");
+                ui.label(ui.localize("order")).on_hover_text("order.hover");
                 ComboBox::from_id_salt(ui.next_auto_id())
-                    .selected_text(self.order.text())
+                    .selected_text(ui.localize(self.order.text()))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.order,
                             Order::Ascending,
-                            Order::Ascending.text(),
+                            ui.localize(Order::Ascending.text()),
                         )
-                        .on_hover_text(Order::Ascending.hover_text());
+                        .on_hover_localized(Order::Ascending.hover_text());
                         ui.selectable_value(
                             &mut self.order,
                             Order::Descending,
-                            Order::Descending.text(),
+                            ui.localize(Order::Descending.text()),
                         )
-                        .on_hover_text(Order::Descending.hover_text());
+                        .on_hover_localized(Order::Descending.hover_text());
                     })
                     .response
-                    .on_hover_text(self.order.hover_text());
+                    .on_hover_localized(self.order.hover_text());
                 ui.end_row();
 
                 if let Kind::Plot = self.kind {
@@ -300,7 +317,7 @@ impl Settings {
                     ui.end_row();
 
                     // Legend
-                    ui.label(localize!("legend"));
+                    ui.label(ui.localize("legend"));
                     ui.checkbox(&mut self.legend, "");
                     ui.end_row();
                 }
@@ -410,15 +427,15 @@ pub(crate) enum Sort {
 impl Text for Sort {
     fn text(&self) -> &'static str {
         match self {
-            Self::FattyAcid => "Fatty acid",
-            Self::Time => "Time",
+            Self::FattyAcid => "sort-by_fatty_acid",
+            Self::Time => "sort-by_time",
         }
     }
 
     fn hover_text(&self) -> &'static str {
         match self {
-            Self::FattyAcid => "Sort by atty acid",
-            Self::Time => "Sort by Equivalent carbon number and retention time",
+            Self::FattyAcid => "sort-by_fatty_acid.hover",
+            Self::Time => "sort-by_time.hover",
         }
     }
 }
@@ -433,15 +450,15 @@ pub(in crate::app) enum Order {
 impl Text for Order {
     fn text(&self) -> &'static str {
         match self {
-            Self::Ascending => "Ascending",
-            Self::Descending => "Descending",
+            Self::Ascending => "order-ascending",
+            Self::Descending => "order-descending",
         }
     }
 
     fn hover_text(&self) -> &'static str {
         match self {
-            Self::Ascending => "Dscending",
-            Self::Descending => "Descending",
+            Self::Ascending => "order-ascending.hover",
+            Self::Descending => "order-descending.hover",
         }
     }
 }

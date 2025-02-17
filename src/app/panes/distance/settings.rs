@@ -1,14 +1,11 @@
-use crate::{
-    app::{MAX_PRECISION, localize},
-    special::column::mode::ColumnExt as _,
-};
+use crate::{app::MAX_PRECISION, special::column::mode::ColumnExt as _};
 use egui::{ComboBox, Grid, RichText, Slider, Ui, WidgetText, emath::Float};
 use egui_ext::LabeledSeparator;
+use egui_l20n::UiExt as _;
 use egui_phosphor::regular::TRASH;
-use lipid::fatty_acid::{
-    FattyAcid,
-    display::{COMMON, DisplayWithOptions},
-    polars::ColumnExt,
+use lipid::{
+    fatty_acid::display::{COMMON, DisplayWithOptions as _},
+    prelude::*,
 };
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -56,36 +53,36 @@ impl Settings {
     }
 
     pub(crate) fn show(&mut self, ui: &mut Ui, data_frame: &DataFrame) {
-        Grid::new("calculation").show(ui, |ui| {
+        Grid::new("Calculation").show(ui, |ui| {
             // Precision floats
-            ui.label(localize!("precision"));
+            ui.label(ui.localize("precision"));
             ui.add(Slider::new(&mut self.precision, 0..=MAX_PRECISION));
             ui.end_row();
 
             // Sticky columns
-            ui.label(localize!("sticky"));
+            ui.label(ui.localize("sticky"));
             ui.add(Slider::new(&mut self.sticky, 0..=data_frame.width()));
             ui.end_row();
 
             // Truncate titles
-            ui.label(localize!("truncate"));
+            ui.label(ui.localize("truncate"));
             ui.checkbox(&mut self.truncate, "");
             ui.end_row();
 
             // Filter
             ui.separator();
-            ui.labeled_separator(RichText::new("Filter").heading());
+            ui.labeled_separator(RichText::new(ui.localize("filter")).heading());
             ui.end_row();
 
             // ui.label("Interpolation");
-            ui.label(localize!("onset-temperature"));
+            ui.label(ui.localize("onset_temperature"));
             ui.add(Slider::new(
                 &mut self.interpolation.onset_temperature,
                 data_frame["Mode"].mode().onset_temperature_range(),
             ));
             ui.end_row();
 
-            ui.label(localize!("temperature-step"));
+            ui.label(ui.localize("temperature_step"));
             ui.add(Slider::new(
                 &mut self.interpolation.temperature_step,
                 data_frame["Mode"].mode().temperature_step_range(),
@@ -102,7 +99,7 @@ impl Settings {
                             .unwrap()
                             .sort(Default::default())
                             .unwrap()
-                            .fatty_acid();
+                            .fa();
                         for index in 0..fatty_acid.len() {
                             if let Ok(Some(fatty_acid)) = fatty_acid.get(index) {
                                 let contains = self.filter.fatty_acids.contains(&fatty_acid);

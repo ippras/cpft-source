@@ -3,10 +3,12 @@ use egui::{Id, Ui, emath::Float, util::hash};
 use egui_ext::color;
 use egui_plot::{Legend, Line, LineStyle, MarkerShape, Plot, PlotItem, PlotPoints, Points};
 use itertools::izip;
-use lipid::fatty_acid::{
-    FattyAcidExt,
-    display::{COMMON, DisplayWithOptions},
-    polars::DataFrameExt as _,
+use lipid::{
+    fatty_acid::{
+        FattyAcidExt as _,
+        display::{COMMON, DisplayWithOptions as _},
+    },
+    prelude::*,
 };
 use polars::prelude::*;
 use tracing::error;
@@ -37,7 +39,7 @@ impl PlotView<'_> {
     fn try_show(&mut self, ui: &mut Ui) -> PolarsResult<()> {
         // let mode = &self.data_frame["Mode"];
         let index = self.data_frame["Index"].u32()?;
-        let fatty_acid = self.data_frame.fatty_acid();
+        let fatty_acid = self.data_frame.fa();
         let onset_temperature = self.data_frame["OnsetTemperature"].list()?;
         let temperature_step = self.data_frame["TemperatureStep"].list()?;
         let retention_time = self.data_frame["RetentionTime"].list()?;

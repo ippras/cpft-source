@@ -1,12 +1,14 @@
 use super::{ID_SOURCE, Settings, State};
 use crate::app::panes::{MARGIN, widgets::float::FloatValue};
 use egui::{Frame, Grid, Id, Margin, TextStyle, TextWrapMode, Ui};
+use egui_l20n::{ResponseExt, UiExt};
+use egui_phosphor::regular::HASH;
 use egui_table::{
     AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, Table, TableDelegate, TableState,
 };
-use lipid::fatty_acid::{
-    display::{COMMON, DisplayWithOptions as _},
-    polars::ColumnExt,
+use lipid::{
+    fatty_acid::display::{COMMON, DisplayWithOptions as _},
+    prelude::*,
 };
 use polars::prelude::*;
 use std::ops::Range;
@@ -87,56 +89,70 @@ impl TableView<'_> {
         match (row, column) {
             // Top
             (0, ID) => {
-                ui.heading("ID");
+                ui.heading(ui.localize("identifier.abbreviation"))
+                    .on_hover_localized("identifier")
+                    .on_hover_localized("identifier.hover");
             }
             (0, RETENTION_TIME) => {
-                ui.heading("Retention time");
+                ui.heading(ui.localize("retention_time"))
+                    .on_hover_localized("retention_time.hover");
             }
             (0, TEMPERATURE) => {
-                ui.heading("Temperature");
+                ui.heading(ui.localize("temperature"));
             }
             (0, CHAIN_LENGTH) => {
-                ui.heading("Chain length");
+                ui.heading(ui.localize("chain_length"))
+                    .on_hover_localized("chain_length.hover");
             }
             (0, MASS) => {
-                ui.heading("Mass");
+                ui.heading(ui.localize("mass"))
+                    .on_hover_localized("mass.hover");
             }
             (0, DERIVATIVE) => {
-                ui.heading("Derivative");
+                ui.heading(ui.localize("derivative"))
+                    .on_hover_localized("derivative.hover");
             }
             // Bottom
             (1, id::INDEX) => {
-                ui.heading("Index");
+                ui.heading(HASH).on_hover_localized("index");
             }
             (1, id::MODE) => {
-                ui.heading("Mode");
+                ui.heading(ui.localize("mode"))
+                    .on_hover_localized("mode.hover");
             }
             (1, id::FA) => {
-                ui.heading("Fatty acid");
+                ui.heading(ui.localize("fatty_acid.abbreviation"))
+                    .on_hover_localized("fatty_acid");
             }
             (1, retention_time::ABSOLUTE) => {
-                ui.heading("Absolute");
+                ui.heading(ui.localize("retention_time-absolute"))
+                    .on_hover_localized("retention_time-absolute.hover");
             }
             (1, retention_time::RELATIVE) => {
-                ui.heading("Relative");
+                ui.heading(ui.localize("retention_time-relative"))
+                    .on_hover_localized("retention_time-relative.hover");
             }
-            (1, retention_time::DELTA) => {
-                ui.heading("Delta");
+            (1, retention_time::DIFF) => {
+                ui.heading(ui.localize("retention_time-difference"))
+                    .on_hover_localized("retention_time-difference.hover");
             }
             (1, chain_length::ECL) => {
-                ui.heading("ECL");
+                ui.heading(ui.localize("equivalent_chain_length.abbreviation"))
+                    .on_hover_localized("equivalent_chain_length");
             }
             (1, chain_length::FCL) => {
-                ui.heading("FCL");
+                ui.heading(ui.localize("fractional_chain_length.abbreviation"))
+                    .on_hover_localized("fractional_chain_length");
             }
             (1, chain_length::ECN) => {
-                ui.heading("ECN");
+                ui.heading(ui.localize("equivalent_carbon_number.abbreviation"))
+                    .on_hover_localized("equivalent_carbon_number");
             }
             (1, derivative::SLOPE) => {
-                ui.heading("Slope");
+                ui.heading(ui.localize("slope"));
             }
             (1, derivative::ANGLE) => {
-                ui.heading("Angle");
+                ui.heading(ui.localize("angle"));
             }
             _ => {}
         }
@@ -150,9 +166,7 @@ impl TableView<'_> {
     ) -> PolarsResult<()> {
         match (row, column) {
             (row, id::INDEX) => {
-                let index = self.data_frame["Index"].u32()?;
-                let value = index.get(row).unwrap();
-                ui.label(value.to_string());
+                ui.label(row.to_string());
             }
             (row, id::MODE) => {
                 let mode = self.data_frame["Mode"].struct_()?;
@@ -165,7 +179,7 @@ impl TableView<'_> {
                 ));
             }
             (row, id::FA) => {
-                let fatty_acids = self.data_frame["FattyAcid"].fatty_acid();
+                let fatty_acids = self.data_frame.fa();
                 let fatty_acid = fatty_acids.get(row)?.unwrap();
                 let text = format!("{:#}", fatty_acid.display(COMMON));
                 ui.label(&text).on_hover_text(&text);
@@ -211,7 +225,7 @@ impl TableView<'_> {
                         .hover(),
                 );
             }
-            (row, retention_time::DELTA) => {
+            (row, retention_time::DIFF) => {
                 let retention_time = self.data_frame["RetentionTime"].struct_()?;
                 let delta = retention_time.field_by_name("Delta")?;
                 ui.add(
@@ -341,7 +355,7 @@ mod retention_time {
 
     pub(super) const ABSOLUTE: Range<usize> = RETENTION_TIME.start..RETENTION_TIME.start + 1;
     pub(super) const RELATIVE: Range<usize> = ABSOLUTE.end..ABSOLUTE.end + 1;
-    pub(super) const DELTA: Range<usize> = RELATIVE.end..RELATIVE.end + 1;
+    pub(super) const DIFF: Range<usize> = RELATIVE.end..RELATIVE.end + 1;
 }
 
 mod chain_length {

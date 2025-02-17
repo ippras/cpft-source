@@ -1,12 +1,10 @@
 use self::{settings::Settings, state::State, table::TableView};
 use crate::{
-    app::{
-        computers::{DistanceComputed, DistanceKey},
-        localize,
-    },
+    app::computers::{DistanceComputed, DistanceKey},
     utils::save,
 };
 use egui::{CursorIcon, Response, RichText, Ui, Window, util::hash};
+use egui_l20n::UiExt as _;
 use egui_phosphor::regular::{ARROWS_CLOCKWISE, ARROWS_HORIZONTAL, EXCLUDE, FLOPPY_DISK, GEAR};
 use metadata::MetaDataFrame;
 use polars::prelude::*;
@@ -46,7 +44,7 @@ impl Pane {
         ui.visuals_mut().button_frame = false;
         let mut response = ui
             .heading(Self::icon())
-            .on_hover_text(localize!("distance"));
+            .on_hover_text(ui.localize("distance"));
         response |= ui.heading(self.title());
         response = response
             .on_hover_text(format!("{:x}", self.hash()))
@@ -65,7 +63,7 @@ impl Pane {
             &mut self.settings.resizable,
             RichText::new(ARROWS_HORIZONTAL).heading(),
         )
-        .on_hover_text(localize!("resize"));
+        .on_hover_text(ui.localize("resize"));
         ui.separator();
         // Settings
         ui.toggle_value(

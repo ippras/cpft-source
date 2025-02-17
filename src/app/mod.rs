@@ -1,5 +1,5 @@
 use self::panes::{Pane, behavior::Behavior};
-use crate::{localize, presets::AGILENT};
+use crate::{localization::ContextExt as _, presets::AGILENT};
 use anyhow::Result;
 use data::Data;
 use eframe::{APP_KEY, get_value, set_value};
@@ -8,6 +8,7 @@ use egui::{
     Order, RichText, ScrollArea, TextStyle, TopBottomPanel, menu::bar, warn_if_debug_build,
 };
 use egui_ext::{DroppedFileExt, HoveredFileExt, LightDarkButton};
+use egui_l20n::{ResponseExt as _, UiExt as _, ui::locale_button::LocaleButton};
 use egui_phosphor::{
     Variant, add_to_fonts,
     regular::{
@@ -60,6 +61,7 @@ impl App {
         let mut fonts = FontDefinitions::default();
         add_to_fonts(&mut fonts, Variant::Regular);
         cc.egui_ctx.set_fonts(fonts);
+        cc.egui_ctx.set_localizations();
 
         // return Default::default();
         // Load previous app state (if any).
@@ -202,14 +204,14 @@ impl App {
                     ui.separator();
                     // Reactive
                     ui.toggle_value(&mut self.reactive, RichText::new(ROCKET).size(ICON_SIZE))
-                        .on_hover_text("reactive")
-                        .on_hover_text(localize!("reactive_description_enabled"))
-                        .on_disabled_hover_text(localize!("reactive_description_disabled"));
+                        .on_hover_localized("reactive")
+                        .on_hover_localized("reactive.hover?state=enabled")
+                        .on_disabled_hover_localized("reactive.hover?state=disabled");
                     ui.separator();
-                    // Reset app
+                    // Reset state
                     if ui
                         .button(RichText::new(TRASH).size(ICON_SIZE))
-                        .on_hover_text(localize!("reset_application"))
+                        .on_hover_localized("reset_state")
                         .clicked()
                     {
                         *self = Self {
@@ -221,17 +223,18 @@ impl App {
                     // Reset GUI
                     if ui
                         .button(RichText::new(ARROWS_CLOCKWISE).size(ICON_SIZE))
-                        .on_hover_text(localize!("reset_gui"))
+                        .on_hover_localized("reset_gui")
                         .clicked()
                     {
                         ui.memory_mut(|memory| {
                             memory.data = Default::default();
                         });
+                        ui.ctx().set_localizations();
                     }
                     ui.separator();
                     if ui
                         .button(RichText::new(SQUARE_SPLIT_VERTICAL).size(ICON_SIZE))
-                        .on_hover_text(localize!("vertical"))
+                        .on_hover_localized("vertical")
                         .clicked()
                     {
                         if let Some(id) = self.tree.root {
@@ -242,7 +245,7 @@ impl App {
                     }
                     if ui
                         .button(RichText::new(SQUARE_SPLIT_HORIZONTAL).size(ICON_SIZE))
-                        .on_hover_text(localize!("horizontal"))
+                        .on_hover_localized("horizontal")
                         .clicked()
                     {
                         if let Some(id) = self.tree.root {
@@ -253,7 +256,7 @@ impl App {
                     }
                     if ui
                         .button(RichText::new(GRID_FOUR).size(ICON_SIZE))
-                        .on_hover_text(localize!("grid"))
+                        .on_hover_localized("grid")
                         .clicked()
                     {
                         if let Some(id) = self.tree.root {
@@ -264,7 +267,7 @@ impl App {
                     }
                     if ui
                         .button(RichText::new(TABS).size(ICON_SIZE))
-                        .on_hover_text(localize!("tabs"))
+                        .on_hover_localized("tabs")
                         .clicked()
                     {
                         if let Some(id) = self.tree.root {
@@ -312,7 +315,13 @@ impl App {
                                 .insert_pane::<VERTICAL>(Pane::source(AGILENT.clone()));
                             ui.close_menu();
                         }
-                    });
+                    })
+                    .response
+                    .on_hover_localized("database");
+                    ui.separator();
+                    // Locale
+                    ui.add(LocaleButton::new().size(ICON_SIZE))
+                        .on_hover_localized("language");
                     ui.separator();
                 });
             });

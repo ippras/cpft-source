@@ -4,7 +4,7 @@ use crate::app::{
 };
 use egui::util::cache::{ComputerMut, FrameCache};
 use lipid::{
-    fatty_acid::{Kind as FattyAcidKind, polars::expr::FattyAcidExpr},
+    polars::expr::{FattyAcidExpr, fatty_acid::kind::FattyAcidExprExt},
     prelude::*,
 };
 use polars::prelude::*;
@@ -100,19 +100,10 @@ impl Computer {
                 as_struct(vec![col("ECL"), col("FCL"), col("ECN")]).alias("ChainLength"),
                 // Mass
                 as_struct(vec![
-                    col("FattyAcid").fa().mass(FattyAcidKind::Rco).alias("RCO"),
-                    col("FattyAcid")
-                        .fa()
-                        .mass(FattyAcidKind::Rcoo)
-                        .alias("RCOO"),
-                    col("FattyAcid")
-                        .fa()
-                        .mass(FattyAcidKind::Rcooh)
-                        .alias("RCOOH"),
-                    col("FattyAcid")
-                        .fa()
-                        .mass(FattyAcidKind::Rcooch3)
-                        .alias("RCOOCH3"),
+                    col("FattyAcid").fa().rco().mass(None).alias("RCO"),
+                    col("FattyAcid").fa().rcoo().mass(None).alias("RCOO"),
+                    col("FattyAcid").fa().rcooh().mass(None).alias("RCOOH"),
+                    col("FattyAcid").fa().rcooch3().mass(None).alias("RCOOCH3"),
                 ])
                 .alias("Mass"),
                 // Derivative
@@ -220,7 +211,7 @@ impl ComputerMut<Key<'_>, DataFrame> for Computer {
             Kind::Table => lazy_frame,
         };
         // Index
-        lazy_frame = lazy_frame.with_row_index("Index", None);
+        // lazy_frame = lazy_frame.with_row_index("Index", None);
         lazy_frame.collect().expect("collect source")
     }
 }

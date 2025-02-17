@@ -5,13 +5,11 @@ use self::{
     table::TableView,
 };
 use crate::{
-    app::{
-        computers::{SourceComputed, SourceKey},
-        localize,
-    },
+    app::computers::{SourceComputed, SourceKey},
     utils::save,
 };
 use egui::{Button, CursorIcon, Id, Response, RichText, Ui, Window, util::hash};
+use egui_l20n::UiExt as _;
 use egui_phosphor::regular::{
     ARROWS_CLOCKWISE, ARROWS_HORIZONTAL, CHART_BAR, EXCLUDE, FLOPPY_DISK, GEAR, TABLE,
 };
@@ -50,7 +48,9 @@ impl Pane {
     }
 
     pub(super) fn header(&mut self, ui: &mut Ui) -> Response {
-        let mut response = ui.heading(Self::icon()).on_hover_text(localize!("source"));
+        let mut response = ui
+            .heading(Self::icon())
+            .on_hover_text(ui.localize("source"));
         response |= ui.heading(self.title());
         response = response
             .on_hover_text(format!("{:x}", self.hash()))
@@ -69,7 +69,7 @@ impl Pane {
             &mut self.settings.resizable,
             RichText::new(ARROWS_HORIZONTAL).heading(),
         )
-        .on_hover_text(localize!("resize"));
+        .on_hover_text(ui.localize("resize"));
         ui.separator();
         // Settings
         ui.toggle_value(

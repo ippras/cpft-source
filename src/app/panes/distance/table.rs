@@ -4,9 +4,9 @@ use egui::{Frame, Id, Margin, TextStyle, TextWrapMode, Ui};
 use egui_table::{
     AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, Table, TableDelegate, TableState,
 };
-use lipid::fatty_acid::{
-    display::{COMMON, DisplayWithOptions as _},
-    polars::ColumnExt,
+use lipid::{
+    fatty_acid::display::{COMMON, DisplayWithOptions as _},
+    prelude::*,
 };
 use polars::prelude::*;
 use std::ops::Range;
@@ -115,13 +115,13 @@ impl TableView<'_> {
                 ));
             }
             (row, FROM) => {
-                let fatty_acids = self.data_frame["From"].fatty_acid();
+                let fatty_acids = self.data_frame["From"].fa();
                 let fatty_acid = fatty_acids.get(row)?.unwrap();
                 let text = format!("{:#}", fatty_acid.display(COMMON));
                 ui.label(&text).on_hover_text(text);
             }
             (row, TO) => {
-                let fatty_acids = self.data_frame["To"].fatty_acid();
+                let fatty_acids = self.data_frame["To"].fa();
                 let fatty_acid = fatty_acids.get(row)?.unwrap();
                 let text = format!("{:#}", fatty_acid.display(COMMON));
                 ui.label(&text).on_hover_text(text);
