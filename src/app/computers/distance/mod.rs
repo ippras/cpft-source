@@ -1,4 +1,7 @@
-use crate::app::panes::distance::settings::{Order, Settings, Sort};
+use crate::app::panes::{
+    distance::settings::{Settings, SortByDistance},
+    source::settings::Order,
+};
 use egui::util::cache::{ComputerMut, FrameCache};
 use polars::prelude::*;
 use std::hash::{Hash, Hasher};
@@ -76,58 +79,41 @@ impl Computer {
                 col("LeftIndex").lt(col("RightIndex")),
             ]);
         // Cache
-        lazy_frame = lazy_frame.cache().select([
-            col("From").struct_().field_by_name("Mode").alias("Mode"),
-            col("From")
-                .struct_()
-                .field_by_name("FattyAcid")
-                .name()
-                .keep(),
-            col("To").struct_().field_by_name("FattyAcid").name().keep(),
-            as_struct(vec![
-                col("FromTime").alias("From"),
-                col("ToTime").alias("To"),
-                (col("ToTime") - col("FromTime"))
-                    .over([col("From").struct_().field_by_name("Mode")])
-                    .alias("Delta"),
-            ])
-            .alias("RetentionTime"),
-            as_struct(vec![
-                col("FromECL").alias("From"),
-                col("ToECL").alias("To"),
-                (col("ToECL") - col("FromECL"))
-                    .over([col("From").struct_().field_by_name("Mode")])
-                    .alias("Delta"),
-            ])
-            .alias("ECL"),
-        ]);
-        // Sort
-        let mut sort_options = SortMultipleOptions::new().with_nulls_last(true);
-        if key.settings.order == Order::Descending {
-            sort_options = sort_options.with_order_descending(true);
-        };
-        lazy_frame = match key.settings.sort {
-            Sort::Ecl => lazy_frame.sort_by_exprs(
-                [col("ECL")
+        lazy_frame = lazy_frame
+            .select([
+                col("From").struct_().field_by_name("Mode").alias("Mode"),
+                col("From")
                     .struct_()
-                    .field_by_name("Delta")
-                    .abs()
-                    .median()
-                    .over([col("Mode")])],
-                sort_options,
-            ),
-            Sort::Time => lazy_frame.sort_by_exprs(
-                [col("RetentionTime")
+                    .field_by_name("FattyAcid")
+                    .name()
+                    .keep(),
+                col("To").struct_().field_by_name("FattyAcid").name().keep(),
+                as_struct(vec![
+                    col("FromTime").alias("From"),
+                    col("ToTime").alias("To"),
+                    (col("ToTime") - col("FromTime"))
+                        .over([col("From").struct_().field_by_name("Mode")])
+                        .alias("Distance"),
+                ])
+                .alias("RetentionTime"),
+                as_struct(vec![
+                    col("FromECL").alias("From"),
+                    col("ToECL").alias("To"),
+                    (col("ToECL") - col("FromECL"))
+                        .over([col("From").struct_().field_by_name("Mode")])
+                        .alias("Distance"),
+                ])
+                .alias("ECL"),
+            ])
+            .with_column(
+                (col("RetentionTime")
                     .struct_()
-                    .field_by_name("Delta")
-                    .abs()
-                    .median()
-                    .over([col("Mode")])],
-                sort_options,
-            ),
-        };
-        // Index
-        lazy_frame = lazy_frame.with_row_index("Index", None);
+                    .field_by_name("Distance")
+                    .pow(2)
+                    + col("ECL").struct_().field_by_name("Distance").pow(2))
+                .sqrt()
+                .alias("Distance"),
+            );
         lazy_frame.collect()
     }
 }
@@ -156,3 +142,6 @@ impl Hash for Key<'_> {
         self.settings.order.hash(state);
     }
 }
+
+pub(super) mod filter;
+pub(super) mod unique;

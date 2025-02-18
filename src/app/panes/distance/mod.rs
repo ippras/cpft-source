@@ -1,6 +1,6 @@
 use self::{settings::Settings, state::State, table::TableView};
 use crate::{
-    app::computers::{DistanceComputed, DistanceKey},
+    app::computers::{DistanceComputed, DistanceFilterComputed, DistanceFilterKey, DistanceKey},
     utils::save,
 };
 use egui::{CursorIcon, Response, RichText, Ui, Window, util::hash};
@@ -23,7 +23,7 @@ pub(crate) struct Pane {
 }
 
 impl Pane {
-    pub(crate) const fn new(frame: MetaDataFrame) -> Self {
+    pub(crate) fn new(frame: MetaDataFrame) -> Self {
         Self {
             source: frame,
             target: DataFrame::empty(),
@@ -97,7 +97,16 @@ impl Pane {
                 settings: &self.settings,
             })
         });
-        TableView::new(&self.target, &self.settings, &mut self.state).show(ui);
+        let data_frame = ui.memory_mut(|memory| {
+            memory
+                .caches
+                .cache::<DistanceFilterComputed>()
+                .get(DistanceFilterKey {
+                    data_frame: &self.target,
+                    settings: &self.settings,
+                })
+        });
+        TableView::new(&data_frame, &self.settings, &mut self.state).show(ui);
     }
 
     fn window(&mut self, ui: &mut Ui) {

@@ -1,3 +1,5 @@
+#![feature(hash_set_entry)]
+
 pub use app::App;
 
 mod app;

@@ -1,6 +1,8 @@
 use super::{ID_SOURCE, Settings, State};
 use crate::app::panes::{MARGIN, widgets::float::FloatValue};
 use egui::{Frame, Id, Margin, TextStyle, TextWrapMode, Ui};
+use egui_l20n::{ResponseExt as _, UiExt as _};
+use egui_phosphor::regular::HASH;
 use egui_table::{
     AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, Table, TableDelegate, TableState,
 };
@@ -12,12 +14,12 @@ use polars::prelude::*;
 use std::ops::Range;
 
 const INDEX: Range<usize> = 0..1;
-const MODE: Range<usize> = INDEX.end..INDEX.end + 1;
-const FROM: Range<usize> = MODE.end..MODE.end + 1;
-const TO: Range<usize> = FROM.end..FROM.end + 1;
-const TIME: Range<usize> = TO.end..TO.end + 1;
-const ECL: Range<usize> = TIME.end..TIME.end + 1;
-const LEN: usize = ECL.end;
+const MODE: Range<usize> = INDEX.end..INDEX.end + 2;
+const FA: Range<usize> = MODE.end..MODE.end + 2;
+const DISTANCE: Range<usize> = FA.end..FA.end + 3;
+pub(super) const LEN: usize = DISTANCE.end;
+
+const TOP: &[Range<usize>] = &[INDEX, MODE, FA, DISTANCE];
 
 /// Table view
 #[derive(Debug)]
@@ -60,7 +62,13 @@ impl TableView<'_> {
                 num_columns
             ])
             .num_sticky_cols(self.settings.sticky)
-            .headers([HeaderRow::new(height)])
+            .headers([
+                HeaderRow {
+                    height,
+                    groups: TOP.to_vec(),
+                },
+                HeaderRow::new(height),
+            ])
             .auto_size_mode(AutoSizeMode::OnParentResize)
             .show(ui, self);
     }
@@ -70,23 +78,45 @@ impl TableView<'_> {
             ui.style_mut().wrap_mode = Some(TextWrapMode::Truncate);
         }
         match (row, column) {
+            // Top
             (0, INDEX) => {
-                ui.heading("Index");
+                ui.heading(HASH).on_hover_localized("index");
             }
             (0, MODE) => {
-                ui.heading("Mode");
+                ui.heading(ui.localize("mode"))
+                    .on_hover_localized("mode.hover");
             }
-            (0, FROM) => {
-                ui.heading("From");
+            (0, FA) => {
+                ui.heading(ui.localize("fatty_acid"));
             }
-            (0, TO) => {
-                ui.heading("To");
+            (0, DISTANCE) => {
+                ui.heading(ui.localize("distance"));
             }
-            (0, TIME) => {
-                ui.heading("Δ Retention time");
+            // Bottom
+            (1, mode::ONSET) => {
+                ui.heading(ui.localize("mode-onset_temperature"))
+                    .on_hover_localized("mode-onset_temperature.hover");
             }
-            (0, ECL) => {
-                ui.heading("Δ ECL");
+            (1, mode::STEP) => {
+                ui.heading(ui.localize("mode-temperature_step"))
+                    .on_hover_localized("mode-temperature_step.hover");
+            }
+            (1, fatty_acid::FROM) => {
+                ui.heading(ui.localize("from"));
+            }
+            (1, fatty_acid::TO) => {
+                ui.heading(ui.localize("to"));
+            }
+            (1, distance::TIME) => {
+                ui.heading(ui.localize("retention_time"));
+            }
+            (1, distance::ECL) => {
+                ui.heading(ui.localize("equivalent_chain_length.abbreviation"))
+                    .on_hover_localized("equivalent_chain_length");
+            }
+            (1, distance::EUCLIDEAN) => {
+                ui.heading(ui.localize("euclidean_distance"))
+                    .on_hover_localized("euclidean_distance.hover");
             }
             _ => {}
         }
@@ -100,37 +130,35 @@ impl TableView<'_> {
     ) -> PolarsResult<()> {
         match (row, column) {
             (row, INDEX) => {
-                let indices = self.data_frame["Index"].u32()?;
-                let value = indices.get(row).unwrap();
-                ui.label(value.to_string());
+                ui.label(row.to_string());
             }
-            (row, MODE) => {
+            (row, mode::ONSET) => {
                 let mode = self.data_frame["Mode"].struct_()?;
                 let onset_temperature = mode.field_by_name("OnsetTemperature")?;
-                let temperature_step = mode.field_by_name("TemperatureStep")?;
-                ui.label(format!(
-                    "{}/{}",
-                    onset_temperature.str_value(row)?,
-                    temperature_step.str_value(row)?,
-                ));
+                ui.label(onset_temperature.str_value(row)?);
             }
-            (row, FROM) => {
+            (row, mode::STEP) => {
+                let mode = self.data_frame["Mode"].struct_()?;
+                let temperature_step = mode.field_by_name("TemperatureStep")?;
+                ui.label(temperature_step.str_value(row)?);
+            }
+            (row, fatty_acid::FROM) => {
                 let fatty_acids = self.data_frame["From"].fa();
                 let fatty_acid = fatty_acids.get(row)?.unwrap();
                 let text = format!("{:#}", fatty_acid.display(COMMON));
                 ui.label(&text).on_hover_text(text);
             }
-            (row, TO) => {
+            (row, fatty_acid::TO) => {
                 let fatty_acids = self.data_frame["To"].fa();
                 let fatty_acid = fatty_acids.get(row)?.unwrap();
                 let text = format!("{:#}", fatty_acid.display(COMMON));
                 ui.label(&text).on_hover_text(text);
             }
-            (row, TIME) => {
+            (row, distance::TIME) => {
                 let retention_time = self.data_frame["RetentionTime"].struct_().unwrap();
-                let delta = retention_time.field_by_name("Delta").unwrap();
+                let distance = retention_time.field_by_name("Distance").unwrap();
                 ui.add(
-                    FloatValue::new(delta.f64().unwrap().get(row))
+                    FloatValue::new(distance.f64().unwrap().get(row))
                         .precision(Some(self.settings.precision))
                         .hover(),
                 )
@@ -144,11 +172,11 @@ impl TableView<'_> {
                     });
                 });
             }
-            (row, ECL) => {
+            (row, distance::ECL) => {
                 let ecl = self.data_frame["ECL"].struct_().unwrap();
-                let delta = ecl.field_by_name("Delta").unwrap();
+                let distance = ecl.field_by_name("Distance").unwrap();
                 ui.add(
-                    FloatValue::new(delta.f64().unwrap().get(row))
+                    FloatValue::new(distance.f64().unwrap().get(row))
                         .precision(Some(self.settings.precision))
                         .hover(),
                 )
@@ -162,10 +190,15 @@ impl TableView<'_> {
                     });
                 });
             }
-            _ => {} // (row, column) => {
-                    //     let value = self.data_frame[column.start].get(row).unwrap();
-                    //     ui.label(value.to_string());
-                    // }
+            (row, distance::EUCLIDEAN) => {
+                let distance = self.data_frame["Distance"].f64().unwrap();
+                ui.add(
+                    FloatValue::new(distance.get(row))
+                        .precision(Some(self.settings.precision))
+                        .hover(),
+                );
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -192,4 +225,26 @@ impl TableDelegate for TableView<'_> {
                     .unwrap()
             });
     }
+}
+
+mod mode {
+    use super::*;
+
+    pub(super) const ONSET: Range<usize> = MODE.start..MODE.start + 1;
+    pub(super) const STEP: Range<usize> = ONSET.end..ONSET.end + 1;
+}
+
+mod fatty_acid {
+    use super::*;
+
+    pub(super) const FROM: Range<usize> = FA.start..FA.start + 1;
+    pub(super) const TO: Range<usize> = FROM.end..FROM.end + 1;
+}
+
+mod distance {
+    use super::*;
+
+    pub(super) const TIME: Range<usize> = DISTANCE.start..DISTANCE.start + 1;
+    pub(super) const ECL: Range<usize> = TIME.end..TIME.end + 1;
+    pub(super) const EUCLIDEAN: Range<usize> = ECL.end..ECL.end + 1;
 }

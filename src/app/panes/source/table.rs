@@ -13,8 +13,10 @@ use lipid::{
 use polars::prelude::*;
 use std::ops::Range;
 
-const ID: Range<usize> = 0..3;
-const RETENTION_TIME: Range<usize> = ID.end..ID.end + 3;
+const INDEX: Range<usize> = 0..1;
+const MODE: Range<usize> = INDEX.end..INDEX.end + 2;
+const FA: Range<usize> = MODE.end..MODE.end + 1;
+const RETENTION_TIME: Range<usize> = FA.end..FA.end + 3;
 const TEMPERATURE: Range<usize> = RETENTION_TIME.end..RETENTION_TIME.end + 1;
 const CHAIN_LENGTH: Range<usize> = TEMPERATURE.end..TEMPERATURE.end + 3;
 const MASS: Range<usize> = CHAIN_LENGTH.end..CHAIN_LENGTH.end + 1;
@@ -22,7 +24,9 @@ const DERIVATIVE: Range<usize> = MASS.end..MASS.end + 2;
 const LEN: usize = DERIVATIVE.end;
 
 const TOP: &[Range<usize>] = &[
-    ID,
+    INDEX,
+    MODE,
+    FA,
     RETENTION_TIME,
     TEMPERATURE,
     CHAIN_LENGTH,
@@ -88,17 +92,24 @@ impl TableView<'_> {
         }
         match (row, column) {
             // Top
-            (0, ID) => {
-                ui.heading(ui.localize("identifier.abbreviation"))
-                    .on_hover_localized("identifier")
-                    .on_hover_localized("identifier.hover");
+            (0, INDEX) => {
+                ui.heading(HASH).on_hover_localized("index");
+            }
+            (0, MODE) => {
+                ui.heading(ui.localize("mode"))
+                    .on_hover_localized("mode.hover");
+            }
+            (0, FA) => {
+                ui.heading(ui.localize("fatty_acid.abbreviation"))
+                    .on_hover_localized("fatty_acid");
             }
             (0, RETENTION_TIME) => {
                 ui.heading(ui.localize("retention_time"))
                     .on_hover_localized("retention_time.hover");
             }
             (0, TEMPERATURE) => {
-                ui.heading(ui.localize("temperature"));
+                ui.heading(ui.localize("temperature"))
+                    .on_hover_localized("temperature.hover");
             }
             (0, CHAIN_LENGTH) => {
                 ui.heading(ui.localize("chain_length"))
@@ -113,16 +124,13 @@ impl TableView<'_> {
                     .on_hover_localized("derivative.hover");
             }
             // Bottom
-            (1, id::INDEX) => {
-                ui.heading(HASH).on_hover_localized("index");
+            (1, mode::ONSET) => {
+                ui.heading(ui.localize("mode-onset_temperature"))
+                    .on_hover_localized("mode-onset_temperature.hover");
             }
-            (1, id::MODE) => {
-                ui.heading(ui.localize("mode"))
-                    .on_hover_localized("mode.hover");
-            }
-            (1, id::FA) => {
-                ui.heading(ui.localize("fatty_acid.abbreviation"))
-                    .on_hover_localized("fatty_acid");
+            (1, mode::STEP) => {
+                ui.heading(ui.localize("mode-temperature_step"))
+                    .on_hover_localized("mode-temperature_step.hover");
             }
             (1, retention_time::ABSOLUTE) => {
                 ui.heading(ui.localize("retention_time-absolute"))
@@ -165,20 +173,20 @@ impl TableView<'_> {
         column: Range<usize>,
     ) -> PolarsResult<()> {
         match (row, column) {
-            (row, id::INDEX) => {
+            (row, INDEX) => {
                 ui.label(row.to_string());
             }
-            (row, id::MODE) => {
+            (row, mode::ONSET) => {
                 let mode = self.data_frame["Mode"].struct_()?;
                 let onset_temperature = mode.field_by_name("OnsetTemperature")?;
-                let temperature_step = mode.field_by_name("TemperatureStep")?;
-                ui.label(format!(
-                    "{}/{}",
-                    onset_temperature.str_value(row)?,
-                    temperature_step.str_value(row)?,
-                ));
+                ui.label(onset_temperature.str_value(row)?);
             }
-            (row, id::FA) => {
+            (row, mode::STEP) => {
+                let mode = self.data_frame["Mode"].struct_()?;
+                let temperature_step = mode.field_by_name("TemperatureStep")?;
+                ui.label(temperature_step.str_value(row)?);
+            }
+            (row, FA) => {
                 let fatty_acids = self.data_frame.fa();
                 let fatty_acid = fatty_acids.get(row)?.unwrap();
                 let text = format!("{:#}", fatty_acid.display(COMMON));
@@ -342,12 +350,11 @@ impl TableDelegate for TableView<'_> {
     }
 }
 
-mod id {
+mod mode {
     use super::*;
 
-    pub(super) const INDEX: Range<usize> = ID.start..ID.start + 1;
-    pub(super) const MODE: Range<usize> = INDEX.end..INDEX.end + 1;
-    pub(super) const FA: Range<usize> = MODE.end..MODE.end + 1;
+    pub(super) const ONSET: Range<usize> = MODE.start..MODE.start + 1;
+    pub(super) const STEP: Range<usize> = ONSET.end..ONSET.end + 1;
 }
 
 mod retention_time {

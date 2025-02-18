@@ -38,7 +38,7 @@ impl PlotView<'_> {
 
     fn try_show(&mut self, ui: &mut Ui) -> PolarsResult<()> {
         // let mode = &self.data_frame["Mode"];
-        let index = self.data_frame["Index"].u32()?;
+        // let index = self.data_frame["Index"].u32()?;
         let fatty_acid = self.data_frame.fa();
         let onset_temperature = self.data_frame["OnsetTemperature"].list()?;
         let temperature_step = self.data_frame["TemperatureStep"].list()?;
@@ -67,26 +67,28 @@ impl PlotView<'_> {
             // )
         });
         plot.show(ui, |ui| -> PolarsResult<()> {
-            for (index, fatty_acid, onset_temperature, temperature_step, retention_time, ecl) in izip!(index, fatty_acid, onset_temperature, temperature_step, retention_time, ecl) {
-                let Some(index) = index else {
-                    polars_bail!(NoData: "Index");
-                };
-                let Some(fatty_acid) = fatty_acid else {
+            for index in 0..self.data_frame.height() {
+                let Some(fatty_acid) = fatty_acid.get(index)? else {
                     polars_bail!(NoData: "FattyAcid");
                 };
-                let Some(onset_temperature) = onset_temperature else {
+                let Some(onset_temperature) = onset_temperature.get_as_series(index) else {
                     polars_bail!(NoData: "OnsetTemperature");
                 };
-                let Some(temperature_step) = temperature_step else {
+                let Some(temperature_step) = temperature_step.get_as_series(index) else {
                     polars_bail!(NoData: "TemperatureStep");
                 };
-                let Some(retention_time) = retention_time else {
+                let Some(retention_time) = retention_time.get_as_series(index) else {
                     polars_bail!(NoData: "RetentionTime");
                 };
-                let Some(ecl) = ecl else {
+                let Some(ecl) = ecl.get_as_series(index) else {
                     polars_bail!(NoData: "ECL");
                 };
-                for (onset_temperature, temperature_step, retention_time, ecl) in izip!(onset_temperature.f64()?, temperature_step.list()?, retention_time.list()?, ecl.list()?) {
+                for (onset_temperature, temperature_step, retention_time, ecl) in izip!(
+                    onset_temperature.f64()?,
+                    temperature_step.list()?,
+                    retention_time.list()?,
+                    ecl.list()?
+                ) {
                     let Some(onset_temperature) = onset_temperature else {
                         polars_bail!(NoData: "OnsetTemperature");
                     };
@@ -100,7 +102,9 @@ impl PlotView<'_> {
                         polars_bail!(NoData: "ECL");
                     };
                     let mut points = Vec::new();
-                    for (temperature_step, retention_time, ecl) in izip!(temperature_step.f64()?, retention_time.f64()?, ecl.f64()?) {
+                    for (temperature_step, retention_time, ecl) in
+                        izip!(temperature_step.f64()?, retention_time.f64()?, ecl.f64()?)
+                    {
                         let Some(temperature_step) = temperature_step else {
                             polars_bail!(NoData: "TemperatureStep");
                         };
@@ -109,8 +113,11 @@ impl PlotView<'_> {
                         }
                     }
                     // Line
-                    let mut line = Line::new(points.clone()).name(format!("{:#}", (&fatty_acid).display(COMMON)));
-                    if fatty_acid.is_unsaturated() && self.settings.filter.mode.onset_temperature.is_none() {
+                    let mut line = Line::new(points.clone())
+                        .name(format!("{:#}", (&fatty_acid).display(COMMON)));
+                    if fatty_acid.is_unsaturated()
+                        && self.settings.filter.mode.onset_temperature.is_none()
+                    {
                         line = line.color(color(onset_temperature as _));
                     } else {
                         line = line.color(color(index as _));
@@ -131,19 +138,98 @@ impl PlotView<'_> {
                     // }
                     // ui.points(points);
                 }
-
-                // if let Some(fatty_acid) = fatty_acid {
-                //     points = points.name(format!("{:#}", (&fatty_acid).display(COMMON)));
-                //     if fatty_acid.unsaturation() == 0 {
-                //         points = points.shape(MarkerShape::Square).filled(false);
-                //     }
-                //     if fatty_acid.unsaturation() == 0 {
-                //         points = points.shape(MarkerShape::Square).filled(false);
-                //     }
-                // }
-                // let mut points = Points::new(points);
-                // 
             }
+            // for (fatty_acid, onset_temperature, temperature_step, retention_time, ecl) in izip!(
+            //     fatty_acid,
+            //     onset_temperature,
+            //     temperature_step,
+            //     retention_time,
+            //     ecl
+            // ) {
+            //     let Some(fatty_acid) = fatty_acid else {
+            //         polars_bail!(NoData: "FattyAcid");
+            //     };
+            //     let Some(onset_temperature) = onset_temperature else {
+            //         polars_bail!(NoData: "OnsetTemperature");
+            //     };
+            //     let Some(temperature_step) = temperature_step else {
+            //         polars_bail!(NoData: "TemperatureStep");
+            //     };
+            //     let Some(retention_time) = retention_time else {
+            //         polars_bail!(NoData: "RetentionTime");
+            //     };
+            //     let Some(ecl) = ecl else {
+            //         polars_bail!(NoData: "ECL");
+            //     };
+            //     for (onset_temperature, temperature_step, retention_time, ecl) in izip!(
+            //         onset_temperature.f64()?,
+            //         temperature_step.list()?,
+            //         retention_time.list()?,
+            //         ecl.list()?
+            //     ) {
+            //         let Some(onset_temperature) = onset_temperature else {
+            //             polars_bail!(NoData: "OnsetTemperature");
+            //         };
+            //         let Some(temperature_step) = temperature_step else {
+            //             polars_bail!(NoData: "TemperatureStep");
+            //         };
+            //         let Some(retention_time) = retention_time else {
+            //             polars_bail!(NoData: "RetentionTime");
+            //         };
+            //         let Some(ecl) = ecl else {
+            //             polars_bail!(NoData: "ECL");
+            //         };
+            //         let mut points = Vec::new();
+            //         for (temperature_step, retention_time, ecl) in
+            //             izip!(temperature_step.f64()?, retention_time.f64()?, ecl.f64()?)
+            //         {
+            //             let Some(temperature_step) = temperature_step else {
+            //                 polars_bail!(NoData: "TemperatureStep");
+            //             };
+            //             if let Some((retention_time, ecl)) = retention_time.zip(ecl) {
+            //                 points.push([retention_time, ecl]);
+            //             }
+            //         }
+            //         // Line
+            //         let mut line = Line::new(points.clone())
+            //             .name(format!("{:#}", (&fatty_acid).display(COMMON)));
+            //         if fatty_acid.is_unsaturated()
+            //             && self.settings.filter.mode.onset_temperature.is_none()
+            //         {
+            //             line = line.color(color(onset_temperature as _));
+            //         } else {
+            //             line = line.color(color(0 as _));
+            //         };
+            //         if fatty_acid.is_unsaturated() {
+            //             line = line.style(LineStyle::Dashed { length: 16.0 });
+            //         }
+            //         ui.line(line);
+            //         // // Points
+            //         // let mut points = Points::new(points)
+            //         //     .name(format!("{:#} {temperature_step}", (&fatty_acid).display(COMMON)))
+            //         //     .color(color(onset_temperature as _))
+            //         //     // .name(onset_temperature)
+            //         //     // .color(color(onset_temperature as _))
+            //         //     .radius(3.0);
+            //         // if fatty_acid.unsaturation() == 0 {
+            //         //     points = points.shape(MarkerShape::Square);
+            //         // }
+            //         // ui.points(points);
+            //     }
+
+            //     // if let Some(fatty_acid) = fatty_acid {
+            //     //     points = points.name(format!("{:#}", (&fatty_acid).display(COMMON)));
+            //     //     if fatty_acid.unsaturation() == 0 {
+            //     //         points = points.shape(MarkerShape::Square).filled(false);
+            //     //     }
+            //     //     if fatty_acid.unsaturation() == 0 {
+            //     //         points = points.shape(MarkerShape::Square).filled(false);
+            //     //     }
+            //     // }
+            //     // let mut points = Points::new(points);
+            //     //
+            // }
+
             // let mut offsets = HashMap::new();
             // for (key, values) in visualized {
             //     // Bars

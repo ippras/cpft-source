@@ -8,6 +8,7 @@ use lipid::{
     prelude::*,
 };
 use polars::prelude::*;
+use polars_utils::format_list_container_truncated;
 use std::hash::{Hash, Hasher};
 
 /// Source computed
@@ -131,9 +132,9 @@ impl Computer {
             );
         }
         if !key.settings.filter.fatty_acids.is_empty() {
-            let mut expr = lit(false);
+            let mut expr = lit(true);
             for fatty_acid in &key.settings.filter.fatty_acids {
-                expr = expr.or(col("FattyAcid").fa().equal(fatty_acid));
+                expr = expr.and(col("FattyAcid").fa().equal(fatty_acid).not());
             }
             lazy_frame = lazy_frame.filter(expr);
         }

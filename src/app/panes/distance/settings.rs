@@ -1,17 +1,33 @@
-use crate::{app::MAX_PRECISION, special::column::mode::ColumnExt as _};
-use egui::{ComboBox, Grid, RichText, Slider, Ui, WidgetText, emath::Float};
+use super::table::LEN;
+use crate::{
+    app::{
+        MAX_PRECISION,
+        computers::{DistanceUniqueComputed, DistanceUniqueKey},
+        panes::source::settings::Order,
+        text::Text,
+    },
+    special::column::mode::ColumnExt as _,
+};
+use egui::{
+    ComboBox, Grid, RichText, ScrollArea, Slider, TextWrapMode, Ui, WidgetText,
+    ahash::{HashSet, HashSetExt as _, RandomState},
+    emath::Float,
+};
 use egui_ext::LabeledSeparator;
-use egui_l20n::UiExt as _;
-use egui_phosphor::regular::TRASH;
+use egui_l20n::{ResponseExt, UiExt as _};
+use egui_phosphor::regular::{FUNNEL, FUNNEL_X};
 use lipid::{
     fatty_acid::display::{COMMON, DisplayWithOptions as _},
     prelude::*,
 };
 use polars::prelude::*;
+use polars_utils::format_list_truncated;
 use serde::{Deserialize, Serialize};
 use std::{
+    convert::identity,
     fmt::{self, Display, Formatter},
     hash::{Hash, Hasher},
+    ops::BitXor,
 };
 use uom::si::{
     f32::Time,
@@ -26,7 +42,7 @@ pub(crate) struct Settings {
     pub(crate) sticky: usize,
     pub(crate) truncate: bool,
 
-    pub(crate) sort: Sort,
+    pub(crate) sort: SortByDistance,
     pub(crate) order: Order,
 
     pub(crate) filter: Filter,
@@ -36,13 +52,13 @@ pub(crate) struct Settings {
 }
 
 impl Settings {
-    pub(crate) const fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             precision: 2,
             resizable: false,
             sticky: 1,
             truncate: false,
-            sort: Sort::Ecl,
+            sort: SortByDistance::Ecl,
             order: Order::Descending,
 
             filter: Filter::new(),
@@ -53,7 +69,7 @@ impl Settings {
     }
 
     pub(crate) fn show(&mut self, ui: &mut Ui, data_frame: &DataFrame) {
-        Grid::new("Calculation").show(ui, |ui| {
+        Grid::new("Calculation").show(ui, |ui| -> PolarsResult<()> {
             // Precision floats
             ui.label(ui.localize("precision"));
             ui.add(Slider::new(&mut self.precision, 0..=MAX_PRECISION));
@@ -61,7 +77,7 @@ impl Settings {
 
             // Sticky columns
             ui.label(ui.localize("sticky"));
-            ui.add(Slider::new(&mut self.sticky, 0..=data_frame.width()));
+            ui.add(Slider::new(&mut self.sticky, 0..=LEN));
             ui.end_row();
 
             // Truncate titles
@@ -89,70 +105,135 @@ impl Settings {
             ));
             ui.end_row();
 
-            ui.label("Filter");
-            ui.horizontal(|ui| {
-                ComboBox::from_id_salt("FilterFattyAcids")
-                    // .selected_text(self.sort.text())
-                    .show_ui(ui, |ui| {
-                        let fatty_acid = data_frame["FattyAcid"]
-                            .unique()
-                            .unwrap()
-                            .sort(Default::default())
-                            .unwrap()
-                            .fa();
-                        for index in 0..fatty_acid.len() {
-                            if let Ok(Some(fatty_acid)) = fatty_acid.get(index) {
-                                let contains = self.filter.fatty_acids.contains(&fatty_acid);
-                                let mut selected = contains;
-                                ui.toggle_value(
-                                    &mut selected,
-                                    format!("{:#}", (&fatty_acid).display(COMMON)),
-                                );
-                                if selected && !contains {
-                                    self.filter.fatty_acids.push(fatty_acid);
-                                } else if !selected && contains {
-                                    self.filter.remove(&fatty_acid);
+            // Filter
+            ui.label(ui.localize("filter"));
+            ui.add_enabled_ui(true, |ui: &mut Ui| {
+                let len = self.filter.fatty_acids.len();
+                let title = if len == 0 {
+                    FUNNEL_X
+                } else {
+                    ui.visuals_mut().widgets.inactive = ui.visuals().widgets.active;
+                    FUNNEL
+                };
+                let response = ui
+                    .menu_button(title, |ui| {
+                        ui.heading(format!("{FUNNEL} {}", ui.localize("filter")));
+                        ui.separator();
+                        let max_height = ui.spacing().combo_height;
+                        let max_width = ui.spacing().combo_width;
+                        ScrollArea::vertical()
+                            .auto_shrink(false)
+                            .max_width(max_width)
+                            .max_height(max_height)
+                            .show(ui, |ui| {
+                                ui.style_mut().wrap_mode = Some(TextWrapMode::Truncate);
+                                let data_frame = ui.memory_mut(|memory| {
+                                    memory
+                                        .caches
+                                        .cache::<DistanceUniqueComputed>()
+                                        .get(DistanceUniqueKey { data_frame })
+                                });
+                                let fatty_acids = data_frame.fa();
+                                for index in 0..fatty_acids.len() {
+                                    if let Ok(Some(fatty_acid)) = fatty_acids.get(index) {
+                                        let contains =
+                                            self.filter.fatty_acids.contains(&fatty_acid);
+                                        let mut selected = contains;
+                                        let text = format!("{:#}", (&fatty_acid).display(COMMON));
+                                        let response = ui
+                                            .toggle_value(&mut selected, &text)
+                                            .on_hover_text(&text);
+                                        if response.changed() {
+                                            if contains {
+                                                self.filter.fatty_acids.remove(&fatty_acid);
+                                            } else {
+                                                self.filter.fatty_acids.insert(fatty_acid);
+                                            }
+                                        }
+                                        response.context_menu(|ui| {
+                                            if ui.button(format!("{FUNNEL} Select all")).clicked() {
+                                                self.filter.fatty_acids = fatty_acids
+                                                    .clone()
+                                                    .into_iter()
+                                                    .filter_map(identity)
+                                                    .collect();
+                                                ui.close_menu();
+                                            }
+                                            if ui
+                                                .button(format!("{FUNNEL_X} Unselect all"))
+                                                .clicked()
+                                            {
+                                                self.filter.fatty_acids = HashSet::new();
+                                                ui.close_menu();
+                                            }
+                                        });
+                                    }
                                 }
-                            }
-                        }
-                    });
-                if ui.button(TRASH).clicked() {
-                    self.filter.fatty_acids = Vec::new();
-                }
+                            });
+                    })
+                    .response;
+                response.on_hover_ui(|ui| {
+                    ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
+                    ui.label(len.to_string());
+                })
             });
             ui.end_row();
 
             // Sort
             ui.separator();
-            ui.labeled_separator(RichText::new("Sort").heading());
+            ui.labeled_separator(RichText::new(ui.localize("sort-by-distance")).heading());
             ui.end_row();
 
-            ui.label("Sort");
+            ui.label(ui.localize("sort-by-distance"))
+                .on_hover_localized("sort-by-distance.hover");
             ComboBox::from_id_salt(ui.next_auto_id())
-                .selected_text(format!("{:?}", self.sort))
+                .selected_text(ui.localize(self.sort.text()))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.sort, Sort::Ecl, "ECL");
-                    ui.selectable_value(&mut self.sort, Sort::Time, "Time");
-                });
+                    ui.selectable_value(
+                        &mut self.sort,
+                        SortByDistance::RetentionTime,
+                        ui.localize(SortByDistance::RetentionTime.text()),
+                    )
+                    .on_hover_localized(SortByDistance::RetentionTime.hover_text());
+                    ui.selectable_value(
+                        &mut self.sort,
+                        SortByDistance::Ecl,
+                        ui.localize(SortByDistance::Ecl.text()),
+                    )
+                    .on_hover_localized(SortByDistance::Ecl.hover_text());
+                    ui.selectable_value(
+                        &mut self.sort,
+                        SortByDistance::Euclidean,
+                        ui.localize(SortByDistance::Euclidean.text()),
+                    )
+                    .on_hover_localized(SortByDistance::Euclidean.hover_text());
+                })
+                .response
+                .on_hover_localized(self.sort.hover_text());
             ui.end_row();
 
             // Order
-            ui.label("Order");
+            ui.label(ui.localize("order"));
             ComboBox::from_id_salt(ui.next_auto_id())
-                .selected_text(self.order.text())
+                .selected_text(ui.localize(self.order.text()))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.order, Order::Ascending, Order::Ascending.text())
-                        .on_hover_text(Order::Ascending.hover_text());
+                    ui.selectable_value(
+                        &mut self.order,
+                        Order::Ascending,
+                        ui.localize(Order::Ascending.text()),
+                    )
+                    .on_hover_localized(Order::Ascending.hover_text());
                     ui.selectable_value(
                         &mut self.order,
                         Order::Descending,
-                        Order::Descending.text(),
+                        ui.localize(Order::Descending.text()),
                     )
-                    .on_hover_text(Order::Descending.hover_text());
+                    .on_hover_localized(Order::Descending.hover_text());
                 })
                 .response
-                .on_hover_text(self.order.hover_text());
+                .on_hover_localized(self.order.hover_text());
             ui.end_row();
+            Ok(())
         });
     }
 }
@@ -164,26 +245,28 @@ impl Default for Settings {
 }
 
 /// Filter
-#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub(crate) struct Filter {
-    pub(crate) fatty_acids: Vec<FattyAcid>,
+    pub(crate) fatty_acids: HashSet<FattyAcid>,
 }
 
 impl Filter {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            fatty_acids: Vec::new(),
+            fatty_acids: HashSet::new(),
         }
     }
 }
 
-impl Filter {
-    fn remove(&mut self, target: &FattyAcid) -> Option<FattyAcid> {
-        let position = self
+impl Hash for Filter {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_usize(self.fatty_acids.len());
+        let hash = self
             .fatty_acids
             .iter()
-            .position(|source| source == target)?;
-        Some(self.fatty_acids.remove(position))
+            .map(|value| RandomState::with_seeds(1, 2, 3, 4).hash_one(value))
+            .fold(0, BitXor::bitxor);
+        state.write_u64(hash);
     }
 }
 
@@ -210,10 +293,30 @@ impl Hash for Interpolation {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Hash, PartialEq, Serialize)]
-pub(crate) enum Sort {
-    Time,
+/// Sort by distance
+#[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
+pub(crate) enum SortByDistance {
     Ecl,
+    Euclidean,
+    RetentionTime,
+}
+
+impl Text for SortByDistance {
+    fn text(&self) -> &'static str {
+        match self {
+            Self::Ecl => "sort-by-equivalent-chain-length-distance",
+            Self::Euclidean => "sort-by-euclidean-distance",
+            Self::RetentionTime => "sort-by-retention-time-distance",
+        }
+    }
+
+    fn hover_text(&self) -> &'static str {
+        match self {
+            Self::Ecl => "sort-by-equivalent-chain-length-distance.hover",
+            Self::Euclidean => "sort-by-euclidean-distance.hover",
+            Self::RetentionTime => "sort-by-retention-time-distance.hover",
+        }
+    }
 }
 
 /// Retention time settings
@@ -306,29 +409,6 @@ impl From<TimeUnits> for Units {
             TimeUnits::Millisecond => Units::millisecond(millisecond),
             TimeUnits::Second => Units::second(second),
             TimeUnits::Minute => Units::minute(minute),
-        }
-    }
-}
-
-/// Order
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub(in crate::app) enum Order {
-    Ascending,
-    Descending,
-}
-
-impl Order {
-    pub(in crate::app) fn text(self) -> &'static str {
-        match self {
-            Self::Ascending => "Ascending",
-            Self::Descending => "Descending",
-        }
-    }
-
-    pub(in crate::app) fn hover_text(self) -> &'static str {
-        match self {
-            Self::Ascending => "Dscending",
-            Self::Descending => "Descending",
         }
     }
 }

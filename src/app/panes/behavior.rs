@@ -1,5 +1,7 @@
-use super::Pane;
-use egui::{CentralPanel, RichText, ScrollArea, Sides, TopBottomPanel, Ui, WidgetText, menu::bar};
+use super::{MARGIN, Pane};
+use egui::{
+    CentralPanel, RichText, ScrollArea, Sides, TextStyle, TopBottomPanel, Ui, WidgetText, menu::bar,
+};
 use egui_phosphor::regular::X;
 use egui_tiles::{TileId, UiResponse};
 use serde::{Deserialize, Serialize};
@@ -41,6 +43,7 @@ impl egui_tiles::Behavior<Pane> for Behavior {
                         .show(ui, |ui| {
                             ui.visuals_mut().button_frame = false;
                             Sides::new()
+                                .height(ui.text_style_height(&TextStyle::Heading) + 4.0 * MARGIN.y)
                                 .show(
                                     ui,
                                     |ui| pane.header(ui),

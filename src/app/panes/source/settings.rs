@@ -2,17 +2,21 @@ use crate::{
     app::{MAX_PRECISION, text::Text},
     special::{column::mode::ColumnExt as _, data_frame::DataFrameExt as _},
 };
-use egui::{ComboBox, Grid, RichText, Slider, Ui, emath::Float};
+use egui::{ComboBox, Grid, PopupCloseBehavior, RichText, Slider, Ui, emath::Float};
 use egui_ext::LabeledSeparator;
 use egui_l20n::{ResponseExt, UiExt as _};
-use egui_phosphor::regular::TRASH;
+use egui_phosphor::regular::{FUNNEL, FUNNEL_X, TRASH};
 use lipid::{
     fatty_acid::display::{COMMON, DisplayWithOptions as _},
     prelude::*,
 };
 use polars::prelude::*;
+use polars_utils::{format_list_container_truncated, format_list_truncated};
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+    convert::identity,
+    hash::{Hash, Hasher},
+};
 
 /// Settings
 #[derive(Clone, Debug, Deserialize, Hash, PartialEq, Serialize)]
@@ -133,8 +137,8 @@ impl Settings {
                 ui.end_row();
 
                 // Onset temperature filter
-                ui.label(ui.localize("onset_temperature"))
-                    .on_hover_localized("onset_temperature.hover");
+                ui.label(ui.localize("filter-by-onset-temperature"))
+                    .on_hover_localized("filter-by-onset-temperature.hover");
                 ui.horizontal(|ui| -> PolarsResult<()> {
                     ComboBox::from_id_salt("OnsetTemperatureFilter")
                         .selected_text(format!("{:?}", self.filter.mode.onset_temperature))
@@ -162,8 +166,8 @@ impl Settings {
                 ui.end_row();
 
                 // Temperature step filter
-                ui.label(ui.localize("temperature_step"))
-                    .on_hover_localized("temperature_step.hover");
+                ui.label(ui.localize("filter-by-temperature-step"))
+                    .on_hover_localized("filter-by-temperature-step.hover");
                 ui.horizontal(|ui| -> PolarsResult<()> {
                     ComboBox::from_id_salt("TemperatureStepFilter")
                         .selected_text(format!("{:?}", self.filter.mode.temperature_step))
@@ -189,28 +193,29 @@ impl Settings {
                 ui.end_row();
 
                 // Fatty acids filter
-                ui.label(ui.localize("fatty_acids"))
-                    .on_hover_localized("fatty_acids.hover");
-                // let text = AnyValue::List(Series::from_iter(
-                //     self.filter
-                //         .fatty_acids
-                //         .iter()
-                //         .map(|fatty_acid| fatty_acid.to_string()),
-                // ))
-                // .to_string();
+                ui.label(ui.localize("filter-by-fatty-acids"))
+                    .on_hover_localized("filter-by-fatty-acids.hover");
+                let text = format_list_truncated!(
+                    self.filter
+                        .fatty_acids
+                        .iter()
+                        .map(|fatty_acid| fatty_acid.display(COMMON)),
+                    2
+                );
                 ui.horizontal(|ui| -> PolarsResult<()> {
                     ComboBox::from_id_salt("FattyAcidsFilter")
-                        .selected_text(self.filter.fatty_acids.len().to_string())
+                        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+                        .selected_text(text)
                         .show_ui(ui, |ui| -> PolarsResult<()> {
-                            let fatty_acid = data_frame["FattyAcid"]
+                            let fatty_acids = data_frame["FattyAcid"]
                                 .unique()?
                                 .sort(Default::default())?
                                 .fa();
-                            for index in 0..fatty_acid.len() {
-                                if let Ok(Some(fatty_acid)) = fatty_acid.get(index) {
+                            for index in 0..fatty_acids.len() {
+                                if let Ok(Some(fatty_acid)) = fatty_acids.get(index) {
                                     let contains = self.filter.fatty_acids.contains(&fatty_acid);
                                     let mut selected = contains;
-                                    ui.toggle_value(
+                                    let response = ui.toggle_value(
                                         &mut selected,
                                         format!("{:#}", (&fatty_acid).display(COMMON)),
                                     );
@@ -219,6 +224,20 @@ impl Settings {
                                     } else if !selected && contains {
                                         self.filter.remove(&fatty_acid);
                                     }
+                                    response.context_menu(|ui| {
+                                        if ui.button(format!("{FUNNEL} Select all")).clicked() {
+                                            self.filter.fatty_acids = fatty_acids
+                                                .clone()
+                                                .into_iter()
+                                                .filter_map(identity)
+                                                .collect();
+                                            ui.close_menu();
+                                        }
+                                        if ui.button(format!("{FUNNEL_X} Unselect all")).clicked() {
+                                            self.filter.fatty_acids = Vec::new();
+                                            ui.close_menu();
+                                        }
+                                    });
                                 }
                             }
                             Ok(())
@@ -261,7 +280,8 @@ impl Settings {
                 ui.end_row();
 
                 // Order
-                ui.label(ui.localize("order")).on_hover_text("order.hover");
+                ui.label(ui.localize("order"))
+                    .on_hover_localized("order.hover");
                 ComboBox::from_id_salt(ui.next_auto_id())
                     .selected_text(ui.localize(self.order.text()))
                     .show_ui(ui, |ui| {
@@ -442,7 +462,7 @@ impl Text for Sort {
 
 /// Order
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub(in crate::app) enum Order {
+pub(crate) enum Order {
     Ascending,
     Descending,
 }
@@ -450,15 +470,15 @@ pub(in crate::app) enum Order {
 impl Text for Order {
     fn text(&self) -> &'static str {
         match self {
-            Self::Ascending => "order-ascending",
-            Self::Descending => "order-descending",
+            Self::Ascending => "ascending-order",
+            Self::Descending => "descending-order",
         }
     }
 
     fn hover_text(&self) -> &'static str {
         match self {
-            Self::Ascending => "order-ascending.hover",
-            Self::Descending => "order-descending.hover",
+            Self::Ascending => "ascending-order.hover",
+            Self::Descending => "descending-order.hover",
         }
     }
 }

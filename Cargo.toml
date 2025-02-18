@@ -1,6 +1,6 @@
 [package]
 name = "cpft"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 
 [dependencies]
@@ -50,6 +50,9 @@ polars = { version = "0.46.0", features = [
     # "interpolate",
     # "interpolate_by",
 ], default-features = false }
+polars-utils = { git = "https://github.com/pola-rs/polars", rev = "65848bc2ff4bda33809ed8be2517594df5b53d26", features = [
+    "nightly",
+] }
 serde = { version = "1.0.217", features = ["derive"] }
 tracing = "0.1.41"
 uom = { version = "0.36.0", features = ["serde"] }
