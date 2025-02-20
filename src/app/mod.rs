@@ -8,7 +8,7 @@ use egui::{
     Order, RichText, ScrollArea, TextStyle, TopBottomPanel, menu::bar, warn_if_debug_build,
 };
 use egui_ext::{DroppedFileExt, HoveredFileExt, LightDarkButton};
-use egui_l20n::{ResponseExt as _, UiExt as _, ui::locale_button::LocaleButton};
+use egui_l20n::{ResponseExt as _, ui::locale_button::LocaleButton};
 use egui_phosphor::{
     Variant, add_to_fonts,
     regular::{
@@ -211,7 +211,7 @@ impl App {
                     // Reset state
                     if ui
                         .button(RichText::new(TRASH).size(ICON_SIZE))
-                        .on_hover_localized("reset_state")
+                        .on_hover_localized("reset-state")
                         .clicked()
                     {
                         *self = Self {
@@ -223,7 +223,7 @@ impl App {
                     // Reset GUI
                     if ui
                         .button(RichText::new(ARROWS_CLOCKWISE).size(ICON_SIZE))
-                        .on_hover_localized("reset_gui")
+                        .on_hover_localized("reset-gui")
                         .clicked()
                     {
                         ui.memory_mut(|memory| {
@@ -357,4 +357,3 @@ impl eframe::App for App {
 mod computers;
 mod data;
 mod panes;
-mod text;

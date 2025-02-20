@@ -4,13 +4,13 @@ use crate::{
         MAX_PRECISION,
         computers::{DistanceUniqueComputed, DistanceUniqueKey},
         panes::source::settings::Order,
-        text::Text,
     },
-    special::column::mode::ColumnExt as _,
+    localization::Text,
+    special::data_frame::DataFrameExt as _,
+    utils::VecExt,
 };
 use egui::{
-    ComboBox, Grid, RichText, ScrollArea, Slider, TextWrapMode, Ui, WidgetText,
-    ahash::{HashSet, HashSetExt as _, RandomState},
+    ComboBox, Grid, PopupCloseBehavior, RichText, Slider, TextWrapMode, Ui, WidgetText,
     emath::Float,
 };
 use egui_ext::LabeledSeparator;
@@ -24,10 +24,8 @@ use polars::prelude::*;
 use polars_utils::format_list_truncated;
 use serde::{Deserialize, Serialize};
 use std::{
-    convert::identity,
     fmt::{self, Display, Formatter},
     hash::{Hash, Hasher},
-    ops::BitXor,
 };
 use uom::si::{
     f32::Time,
@@ -91,92 +89,25 @@ impl Settings {
             ui.end_row();
 
             // ui.label("Interpolation");
-            ui.label(ui.localize("onset_temperature"));
+            ui.label(ui.localize("filter-by-onset-temperature"))
+                .on_hover_localized("filter-by-onset-temperature.hover");
             ui.add(Slider::new(
                 &mut self.interpolation.onset_temperature,
-                data_frame["Mode"].mode().onset_temperature_range(),
+                data_frame.mode().onset_temperature_range(),
             ));
             ui.end_row();
 
-            ui.label(ui.localize("temperature_step"));
+            ui.label(ui.localize("filter-by-temperature-step"))
+                .on_hover_localized("filter-by-temperature-step.hover");
             ui.add(Slider::new(
                 &mut self.interpolation.temperature_step,
-                data_frame["Mode"].mode().temperature_step_range(),
+                data_frame.mode().temperature_step_range(),
             ));
             ui.end_row();
 
-            // Filter
-            ui.label(ui.localize("filter"));
-            ui.add_enabled_ui(true, |ui: &mut Ui| {
-                let len = self.filter.fatty_acids.len();
-                let title = if len == 0 {
-                    FUNNEL_X
-                } else {
-                    ui.visuals_mut().widgets.inactive = ui.visuals().widgets.active;
-                    FUNNEL
-                };
-                let response = ui
-                    .menu_button(title, |ui| {
-                        ui.heading(format!("{FUNNEL} {}", ui.localize("filter")));
-                        ui.separator();
-                        let max_height = ui.spacing().combo_height;
-                        let max_width = ui.spacing().combo_width;
-                        ScrollArea::vertical()
-                            .auto_shrink(false)
-                            .max_width(max_width)
-                            .max_height(max_height)
-                            .show(ui, |ui| {
-                                ui.style_mut().wrap_mode = Some(TextWrapMode::Truncate);
-                                let data_frame = ui.memory_mut(|memory| {
-                                    memory
-                                        .caches
-                                        .cache::<DistanceUniqueComputed>()
-                                        .get(DistanceUniqueKey { data_frame })
-                                });
-                                let fatty_acids = data_frame.fa();
-                                for index in 0..fatty_acids.len() {
-                                    if let Ok(Some(fatty_acid)) = fatty_acids.get(index) {
-                                        let contains =
-                                            self.filter.fatty_acids.contains(&fatty_acid);
-                                        let mut selected = contains;
-                                        let text = format!("{:#}", (&fatty_acid).display(COMMON));
-                                        let response = ui
-                                            .toggle_value(&mut selected, &text)
-                                            .on_hover_text(&text);
-                                        if response.changed() {
-                                            if contains {
-                                                self.filter.fatty_acids.remove(&fatty_acid);
-                                            } else {
-                                                self.filter.fatty_acids.insert(fatty_acid);
-                                            }
-                                        }
-                                        response.context_menu(|ui| {
-                                            if ui.button(format!("{FUNNEL} Select all")).clicked() {
-                                                self.filter.fatty_acids = fatty_acids
-                                                    .clone()
-                                                    .into_iter()
-                                                    .filter_map(identity)
-                                                    .collect();
-                                                ui.close_menu();
-                                            }
-                                            if ui
-                                                .button(format!("{FUNNEL_X} Unselect all"))
-                                                .clicked()
-                                            {
-                                                self.filter.fatty_acids = HashSet::new();
-                                                ui.close_menu();
-                                            }
-                                        });
-                                    }
-                                }
-                            });
-                    })
-                    .response;
-                response.on_hover_ui(|ui| {
-                    ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
-                    ui.label(len.to_string());
-                })
-            });
+            ui.label(ui.localize("filter-by-fatty-acids"))
+                .on_hover_localized("filter-by-fatty-acids.hover");
+            self.filter.show(ui, data_frame)?;
             ui.end_row();
 
             // Sort
@@ -245,28 +176,68 @@ impl Default for Settings {
 }
 
 /// Filter
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize)]
 pub(crate) struct Filter {
-    pub(crate) fatty_acids: HashSet<FattyAcid>,
+    pub(crate) fatty_acids: Vec<FattyAcid>,
 }
 
 impl Filter {
     pub fn new() -> Self {
         Self {
-            fatty_acids: HashSet::new(),
+            fatty_acids: Vec::new(),
         }
     }
 }
 
-impl Hash for Filter {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_usize(self.fatty_acids.len());
-        let hash = self
-            .fatty_acids
-            .iter()
-            .map(|value| RandomState::with_seeds(1, 2, 3, 4).hash_one(value))
-            .fold(0, BitXor::bitxor);
-        state.write_u64(hash);
+impl Filter {
+    fn show(&mut self, ui: &mut Ui, data_frame: &DataFrame) -> PolarsResult<()> {
+        let text = format_list_truncated!(
+            self.fatty_acids
+                .iter()
+                .map(|fatty_acid| fatty_acid.display(COMMON)),
+            2
+        );
+        let inner_response = ComboBox::from_id_salt("FattyAcidsFilter")
+            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+            .selected_text(text)
+            .show_ui(ui, |ui| -> PolarsResult<()> {
+                let fatty_acids = data_frame["FattyAcid"]
+                    .unique()?
+                    .sort(Default::default())?
+                    .fa();
+                for index in 0..fatty_acids.len() {
+                    let Some(fatty_acid) = fatty_acids.get(index)? else {
+                        continue;
+                    };
+                    let checked = self.fatty_acids.contains(&fatty_acid);
+                    let response = ui
+                        .selectable_label(checked, format!("{:#}", (&fatty_acid).display(COMMON)));
+                    if response.clicked() {
+                        if checked {
+                            self.fatty_acids.remove_by_value(&fatty_acid);
+                        } else {
+                            self.fatty_acids.push(fatty_acid);
+                        }
+                    }
+                    response.context_menu(|ui| {
+                        if ui.button(format!("{FUNNEL} Select all")).clicked() {
+                            self.fatty_acids = fatty_acids.clone().into_iter().flatten().collect();
+                            ui.close_menu();
+                        }
+                        if ui.button(format!("{FUNNEL_X} Unselect all")).clicked() {
+                            self.fatty_acids = Vec::new();
+                            ui.close_menu();
+                        }
+                    });
+                }
+                Ok(())
+            });
+        inner_response.inner.transpose()?;
+        inner_response.response.on_hover_ui(|ui| {
+            ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
+            ui.label(self.fatty_acids.len().to_string());
+        });
+        Ok(())
     }
 }
 

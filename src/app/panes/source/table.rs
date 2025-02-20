@@ -15,8 +15,8 @@ use std::ops::Range;
 
 const INDEX: Range<usize> = 0..1;
 const MODE: Range<usize> = INDEX.end..INDEX.end + 2;
-const FA: Range<usize> = MODE.end..MODE.end + 1;
-const RETENTION_TIME: Range<usize> = FA.end..FA.end + 3;
+const FATTY_ACID: Range<usize> = MODE.end..MODE.end + 1;
+const RETENTION_TIME: Range<usize> = FATTY_ACID.end..FATTY_ACID.end + 3;
 const TEMPERATURE: Range<usize> = RETENTION_TIME.end..RETENTION_TIME.end + 1;
 const CHAIN_LENGTH: Range<usize> = TEMPERATURE.end..TEMPERATURE.end + 3;
 const MASS: Range<usize> = CHAIN_LENGTH.end..CHAIN_LENGTH.end + 1;
@@ -26,7 +26,7 @@ const LEN: usize = DERIVATIVE.end;
 const TOP: &[Range<usize>] = &[
     INDEX,
     MODE,
-    FA,
+    FATTY_ACID,
     RETENTION_TIME,
     TEMPERATURE,
     CHAIN_LENGTH,
@@ -99,21 +99,23 @@ impl TableView<'_> {
                 ui.heading(ui.localize("mode"))
                     .on_hover_localized("mode.hover");
             }
-            (0, FA) => {
-                ui.heading(ui.localize("fatty_acid.abbreviation"))
-                    .on_hover_localized("fatty_acid");
+            (0, FATTY_ACID) => {
+                ui.heading(ui.localize("fatty-acid"))
+                    .on_hover_localized("fatty-acid.abbreviation");
             }
             (0, RETENTION_TIME) => {
-                ui.heading(ui.localize("retention_time"))
-                    .on_hover_localized("retention_time.hover");
+                ui.heading(ui.localize("retention-time"))
+                    .on_hover_localized("retention-time.abbreviation")
+                    .on_hover_localized("retention-time.hover");
             }
             (0, TEMPERATURE) => {
                 ui.heading(ui.localize("temperature"))
+                    .on_hover_localized("temperature.abbreviation")
                     .on_hover_localized("temperature.hover");
             }
             (0, CHAIN_LENGTH) => {
-                ui.heading(ui.localize("chain_length"))
-                    .on_hover_localized("chain_length.hover");
+                ui.heading(ui.localize("chain-length"))
+                    .on_hover_localized("chain-length.hover");
             }
             (0, MASS) => {
                 ui.heading(ui.localize("mass"))
@@ -125,36 +127,37 @@ impl TableView<'_> {
             }
             // Bottom
             (1, mode::ONSET) => {
-                ui.heading(ui.localize("mode-onset_temperature"))
-                    .on_hover_localized("mode-onset_temperature.hover");
+                ui.heading(ui.localize("onset-temperature.abbreviation"))
+                    .on_hover_localized("onset-temperature");
             }
             (1, mode::STEP) => {
-                ui.heading(ui.localize("mode-temperature_step"))
-                    .on_hover_localized("mode-temperature_step.hover");
+                ui.heading(ui.localize("temperature-step.abbreviation"))
+                    .on_hover_localized("temperature-step")
+                    .on_hover_localized("temperature-step.hover");
             }
             (1, retention_time::ABSOLUTE) => {
-                ui.heading(ui.localize("retention_time-absolute"))
-                    .on_hover_localized("retention_time-absolute.hover");
+                ui.heading(ui.localize("absolute-retention-time"))
+                    .on_hover_localized("absolute-retention-time.hover");
             }
             (1, retention_time::RELATIVE) => {
-                ui.heading(ui.localize("retention_time-relative"))
-                    .on_hover_localized("retention_time-relative.hover");
+                ui.heading(ui.localize("relative-retention-time"))
+                    .on_hover_localized("relative-retention-time.hover");
             }
-            (1, retention_time::DIFF) => {
-                ui.heading(ui.localize("retention_time-difference"))
-                    .on_hover_localized("retention_time-difference.hover");
+            (1, retention_time::DELTA) => {
+                ui.heading(ui.localize("delta-retention-time"))
+                    .on_hover_localized("delta-retention-time.hover");
             }
             (1, chain_length::ECL) => {
-                ui.heading(ui.localize("equivalent_chain_length.abbreviation"))
-                    .on_hover_localized("equivalent_chain_length");
+                ui.heading(ui.localize("equivalent-chain-length.abbreviation"))
+                    .on_hover_localized("equivalent-chain-length");
             }
             (1, chain_length::FCL) => {
-                ui.heading(ui.localize("fractional_chain_length.abbreviation"))
-                    .on_hover_localized("fractional_chain_length");
+                ui.heading(ui.localize("fractional-chain-length.abbreviation"))
+                    .on_hover_localized("fractional-chain-length");
             }
             (1, chain_length::ECN) => {
-                ui.heading(ui.localize("equivalent_carbon_number.abbreviation"))
-                    .on_hover_localized("equivalent_carbon_number");
+                ui.heading(ui.localize("equivalent-carbon-number.abbreviation"))
+                    .on_hover_localized("equivalent-carbon-number");
             }
             (1, derivative::SLOPE) => {
                 ui.heading(ui.localize("slope"));
@@ -186,7 +189,7 @@ impl TableView<'_> {
                 let temperature_step = mode.field_by_name("TemperatureStep")?;
                 ui.label(temperature_step.str_value(row)?);
             }
-            (row, FA) => {
+            (row, FATTY_ACID) => {
                 let fatty_acids = self.data_frame.fa();
                 let fatty_acid = fatty_acids.get(row)?.unwrap();
                 let text = format!("{:#}", fatty_acid.display(COMMON));
@@ -233,7 +236,7 @@ impl TableView<'_> {
                         .hover(),
                 );
             }
-            (row, retention_time::DIFF) => {
+            (row, retention_time::DELTA) => {
                 let retention_time = self.data_frame["RetentionTime"].struct_()?;
                 let delta = retention_time.field_by_name("Delta")?;
                 ui.add(
@@ -252,7 +255,7 @@ impl TableView<'_> {
             }
             (row, chain_length::ECL) => {
                 let chain_length = self.data_frame["ChainLength"].struct_()?;
-                let ecl = chain_length.field_by_name("ECL")?;
+                let ecl = chain_length.field_by_name("EquivalentChainLength")?;
                 ui.add(
                     FloatValue::new(ecl.f64()?.get(row))
                         .precision(Some(self.settings.precision))
@@ -362,7 +365,7 @@ mod retention_time {
 
     pub(super) const ABSOLUTE: Range<usize> = RETENTION_TIME.start..RETENTION_TIME.start + 1;
     pub(super) const RELATIVE: Range<usize> = ABSOLUTE.end..ABSOLUTE.end + 1;
-    pub(super) const DIFF: Range<usize> = RELATIVE.end..RELATIVE.end + 1;
+    pub(super) const DELTA: Range<usize> = RELATIVE.end..RELATIVE.end + 1;
 }
 
 mod chain_length {

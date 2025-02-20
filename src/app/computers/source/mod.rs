@@ -1,6 +1,6 @@
 use crate::app::{
     MAX_TEMPERATURE,
-    panes::source::settings::{Group, Kind, Order, Settings, Sort},
+    panes::source::settings::{Filter, Order, Settings, SortBy},
 };
 use egui::util::cache::{ComputerMut, FrameCache};
 use lipid::{
@@ -8,7 +8,6 @@ use lipid::{
     prelude::*,
 };
 use polars::prelude::*;
-use polars_utils::format_list_container_truncated;
 use std::hash::{Hash, Hasher};
 
 /// Source computed
@@ -19,7 +18,7 @@ pub(crate) type Computed = FrameCache<DataFrame, Computer>;
 pub(crate) struct Computer;
 
 impl Computer {
-    fn try_compute(&mut self, key: Key<'_>) -> PolarsResult<LazyFrame> {
+    fn try_compute(&mut self, key: Key<'_>) -> PolarsResult<DataFrame> {
         let mut lazy_frame = key.data_frame.clone().lazy();
         lazy_frame = lazy_frame
             .with_columns([
@@ -68,7 +67,7 @@ impl Computer {
                         ChainLengthOptions::new().logarithmic(key.settings.logarithmic),
                     )
                     .over(["Mode"])
-                    .alias("ECL"),
+                    .alias("EquivalentChainLength"),
                 // ECN
                 col("FattyAcid").fa().ecn().alias("ECN"),
             ])
@@ -76,7 +75,7 @@ impl Computer {
                 // Slope
                 col("FattyAcid")
                     .fa()
-                    .slope(col("ECL"), col("RetentionTimeMean"))
+                    .slope(col("EquivalentChainLength"), col("RetentionTimeMean"))
                     .over(["Mode"])
                     .alias("Slope"),
             ])
@@ -98,7 +97,8 @@ impl Computer {
                 // Temperature
                 col("Temperature"),
                 // Chain length
-                as_struct(vec![col("ECL"), col("FCL"), col("ECN")]).alias("ChainLength"),
+                as_struct(vec![col("EquivalentChainLength"), col("FCL"), col("ECN")])
+                    .alias("ChainLength"),
                 // Mass
                 as_struct(vec![
                     col("FattyAcid").fa().rco().mass(None).alias("RCO"),
@@ -115,28 +115,8 @@ impl Computer {
                 .alias("Derivative"),
             ]);
         // Filter
-        if let Some(onset_temperature) = key.settings.filter.mode.onset_temperature {
-            lazy_frame = lazy_frame.filter(
-                col("Mode")
-                    .struct_()
-                    .field_by_name("OnsetTemperature")
-                    .eq(lit(onset_temperature)),
-            );
-        }
-        if let Some(temperature_step) = key.settings.filter.mode.temperature_step {
-            lazy_frame = lazy_frame.filter(
-                col("Mode")
-                    .struct_()
-                    .field_by_name("TemperatureStep")
-                    .eq(lit(temperature_step)),
-            );
-        }
-        if !key.settings.filter.fatty_acids.is_empty() {
-            let mut expr = lit(true);
-            for fatty_acid in &key.settings.filter.fatty_acids {
-                expr = expr.and(col("FattyAcid").fa().equal(fatty_acid).not());
-            }
-            lazy_frame = lazy_frame.filter(expr);
+        if let Some(predicate) = filter(&key.settings.filter) {
+            lazy_frame = lazy_frame.filter(predicate);
         }
         // Interpolate
         // Sort
@@ -145,75 +125,16 @@ impl Computer {
             sort_options = sort_options.with_order_descending(true);
         };
         lazy_frame = match key.settings.sort {
-            Sort::FattyAcid => lazy_frame.sort_by_fatty_acids(sort_options),
-            Sort::Time => lazy_frame.sort_by_time(sort_options),
+            SortBy::FattyAcid => lazy_frame.sort_by_fatty_acids(sort_options),
+            SortBy::Time => lazy_frame.sort_by_time(sort_options),
         };
-        Ok(lazy_frame)
+        lazy_frame.collect()
     }
 }
 
 impl ComputerMut<Key<'_>, DataFrame> for Computer {
     fn compute(&mut self, key: Key<'_>) -> DataFrame {
-        let mut lazy_frame = self.try_compute(key).expect("compute source");
-        lazy_frame = match key.settings.kind {
-            Kind::Plot => {
-                lazy_frame = lazy_frame.select([
-                    col("Mode").struct_().field_by_name("OnsetTemperature"),
-                    col("Mode").struct_().field_by_name("TemperatureStep"),
-                    col("FattyAcid"),
-                    col("RetentionTime")
-                        .struct_()
-                        .field_by_name("Absolute")
-                        .struct_()
-                        .field_by_name("Mean")
-                        .alias("RetentionTime"),
-                    col("ChainLength")
-                        .struct_()
-                        .field_by_name("ECL")
-                        .alias("ECL"),
-                ]);
-                println!("lazy_frame: {}", lazy_frame.clone().collect().unwrap());
-                // let lazy_frame = lazy_frame.rank()
-                let lazy_frame =
-                    match key.settings.group {
-                        Group::FattyAcid => lazy_frame
-                            .group_by([col("FattyAcid"), col("OnsetTemperature")])
-                            .agg([col("TemperatureStep"), col("RetentionTime"), col("ECL")])
-                            .group_by([col("FattyAcid")])
-                            .agg([
-                                col("OnsetTemperature"),
-                                col("TemperatureStep"),
-                                col("RetentionTime"),
-                                col("ECL"),
-                            ])
-                            .sort(["FattyAcid"], Default::default()),
-                        Group::OnsetTemperature => lazy_frame
-                            .group_by([col("OnsetTemperature")])
-                            .agg([as_struct(vec![
-                                col("TemperatureStep"),
-                                col("FattyAcid"),
-                                col("RetentionTime"),
-                                col("ECL"),
-                            ])
-                            .alias("Value")]),
-                        Group::TemperatureStep => lazy_frame
-                            .group_by([col("TemperatureStep")])
-                            .agg([as_struct(vec![
-                                col("OnsetTemperature"),
-                                col("FattyAcid"),
-                                col("RetentionTime"),
-                                col("ECL"),
-                            ])
-                            .alias("Value")]),
-                    };
-                println!("lazy_frame: {}", lazy_frame.clone().collect().unwrap());
-                lazy_frame
-            }
-            Kind::Table => lazy_frame,
-        };
-        // Index
-        // lazy_frame = lazy_frame.with_row_index("Index", None);
-        lazy_frame.collect().expect("collect source")
+        self.try_compute(key).expect("compute source")
     }
 }
 
@@ -233,8 +154,44 @@ impl Hash for Key<'_> {
         self.settings.filter.hash(state);
         self.settings.sort.hash(state);
         self.settings.order.hash(state);
-        self.settings.group.hash(state);
     }
+}
+
+fn filter(filter: &Filter) -> Option<Expr> {
+    let mut expr = None;
+    if !filter.onset_temperatures.is_empty() {
+        for &onset_temperature in &filter.onset_temperatures {
+            expr = Some(
+                expr.unwrap_or(lit(true)).and(
+                    col("Mode")
+                        .struct_()
+                        .field_by_name("OnsetTemperature")
+                        .neq(onset_temperature),
+                ),
+            );
+        }
+    }
+    if !filter.temperature_steps.is_empty() {
+        for &temperature_step in &filter.temperature_steps {
+            expr = Some(
+                expr.unwrap_or(lit(true)).and(
+                    col("Mode")
+                        .struct_()
+                        .field_by_name("TemperatureStep")
+                        .neq(temperature_step),
+                ),
+            );
+        }
+    }
+    if !filter.fatty_acids.is_empty() {
+        for fatty_acid in &filter.fatty_acids {
+            expr = Some(
+                expr.unwrap_or(lit(true))
+                    .and(col("FattyAcid").fa().equal(fatty_acid).not()),
+            );
+        }
+    }
+    expr
 }
 
 /// Extension methods for [`LazyFrame`]
@@ -253,7 +210,9 @@ impl LazyFrameExt for LazyFrame {
         self.sort(["Mode"], sort_options.clone()).select([all()
             .sort_by(
                 &[
-                    col("ChainLength").struct_().field_by_name("ECL"),
+                    col("ChainLength")
+                        .struct_()
+                        .field_by_name("EquivalentChainLength"),
                     col("RetentionTime")
                         .struct_()
                         .field_by_name("Absolute")
@@ -310,3 +269,5 @@ impl Saturated for FattyAcidExpr {
         self.clone().saturated_or_null(expr).forward_fill(None)
     }
 }
+
+pub(crate) mod plot;

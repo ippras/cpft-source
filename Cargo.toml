@@ -1,10 +1,10 @@
 [package]
 name = "cpft"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.95"
+anyhow = "1.0.96"
 eframe = { version = "0.31.0", default-features = false, features = [
     "accesskit",
     "default_fonts",
@@ -15,7 +15,7 @@ eframe = { version = "0.31.0", default-features = false, features = [
 egui = "0.31.0"
 egui-phosphor = "0.9.0"
 egui_ext = { git = "https://github.com/kgv/egui_ext" }
-egui_extras = "0.31.0"
+egui_extras = { version = "0.31.0", features = ["svg"] }
 egui_l20n = { git = "https://github.com/kgv/egui_l20n", features = ["macros"] }
 egui_plot = "0.31.0"
 egui_table = "0.3.0"
@@ -30,6 +30,7 @@ polars = { version = "0.46.0", features = [
     "abs",
     "cross_join",
     "diagonal_concat",
+    "dtype-array",
     "dtype-i16",
     "dtype-i8",
     "dtype-struct",
@@ -53,9 +54,12 @@ polars = { version = "0.46.0", features = [
 polars-utils = { git = "https://github.com/pola-rs/polars", rev = "65848bc2ff4bda33809ed8be2517594df5b53d26", features = [
     "nightly",
 ] }
-serde = { version = "1.0.217", features = ["derive"] }
+serde = { version = "1.0.218", features = ["derive"] }
 tracing = "0.1.41"
 uom = { version = "0.36.0", features = ["serde"] }
+
+# egui_commonmark = "0.20.0"
+# mathjax_svg = "3.1.2"
 
 # native
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

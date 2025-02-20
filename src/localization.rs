@@ -1,6 +1,13 @@
 use egui::Context;
 use egui_l20n::{ContextExt as _, Localization};
 
+/// Text
+pub trait Text {
+    fn text(&self) -> &'static str;
+
+    fn hover_text(&self) -> &'static str;
+}
+
 /// Extension methods for [`Context`]
 pub(crate) trait ContextExt {
     fn set_localizations(&self);
@@ -34,7 +41,15 @@ mod sources {
         };
     }
 
-    pub(super) const EN: &[&str] = &[source!("/ftl/en/main.ftl"), source!("/ftl/en/params.ftl")];
+    pub(super) const EN: &[&str] = &[
+        source!("/ftl/en/main.ftl"),
+        source!("/ftl/en/params.ftl"),
+        source!("/ftl/und/icons.ftl"),
+    ];
 
-    pub(super) const RU: &[&str] = &[source!("/ftl/ru/main.ftl")];
+    pub(super) const RU: &[&str] = &[
+        source!("/ftl/ru/main.ftl"),
+        source!("/ftl/ru/params.ftl"),
+        source!("/ftl/und/icons.ftl"),
+    ];
 }

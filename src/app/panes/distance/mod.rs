@@ -1,6 +1,8 @@
 use self::{settings::Settings, state::State, table::TableView};
 use crate::{
-    app::computers::{DistanceComputed, DistanceFilterComputed, DistanceFilterKey, DistanceKey},
+    app::computers::{
+        DistanceComputed, DistanceFilteredComputed, DistanceFilteredKey, DistanceKey,
+    },
     utils::save,
 };
 use egui::{CursorIcon, Response, RichText, Ui, Window, util::hash};
@@ -100,8 +102,8 @@ impl Pane {
         let data_frame = ui.memory_mut(|memory| {
             memory
                 .caches
-                .cache::<DistanceFilterComputed>()
-                .get(DistanceFilterKey {
+                .cache::<DistanceFilteredComputed>()
+                .get(DistanceFilteredKey {
                     data_frame: &self.target,
                     settings: &self.settings,
                 })
@@ -110,7 +112,7 @@ impl Pane {
     }
 
     fn window(&mut self, ui: &mut Ui) {
-        Window::new(format!("{GEAR} Distance settings"))
+        Window::new(ui.localize("distance-settings"))
             .id(ui.auto_id_with(ID_SOURCE))
             .open(&mut self.state.open_settings_window)
             .show(ui.ctx(), |ui| {

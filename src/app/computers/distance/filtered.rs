@@ -7,10 +7,10 @@ use lipid::prelude::*;
 use polars::prelude::*;
 use std::hash::{Hash, Hasher};
 
-/// Distance filter computed
+/// Distance filtered computed
 pub(crate) type Computed = FrameCache<DataFrame, Computer>;
 
-/// Distance filter computer
+/// Distance filtered computer
 #[derive(Default)]
 pub(crate) struct Computer;
 
@@ -29,7 +29,7 @@ impl Computer {
 
 impl ComputerMut<Key<'_>, DataFrame> for Computer {
     fn compute(&mut self, key: Key<'_>) -> DataFrame {
-        self.try_compute(key).expect("compute distance filter")
+        self.try_compute(key).expect("compute distance filtered")
     }
 }
 
@@ -46,7 +46,7 @@ fn sort(sort: &SortByDistance, order: &Order) -> ([Expr; 1], SortMultipleOptions
                 .abs()
                 .median()
                 .over([col("Mode")]),
-            SortByDistance::Ecl => col("ECL")
+            SortByDistance::Ecl => col("EquivalentChainLength")
                 .struct_()
                 .field_by_name("Distance")
                 .abs()
@@ -68,7 +68,7 @@ fn filter(filter: &Filter) -> Expr {
     predicate
 }
 
-/// Distance filter key
+/// Distance filtered key
 #[derive(Clone, Copy, Debug)]
 pub struct Key<'a> {
     pub(crate) data_frame: &'a DataFrame,

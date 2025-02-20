@@ -5,7 +5,7 @@ use self::{
     table::TableView,
 };
 use crate::{
-    app::computers::{SourceComputed, SourceKey},
+    app::computers::{SourceComputed, SourceKey, SourcePlotComputed, SourcePlotKey},
     utils::save,
 };
 use egui::{Button, CursorIcon, Id, Response, RichText, Ui, Window, util::hash};
@@ -134,13 +134,24 @@ impl Pane {
             })
         });
         match self.settings.kind {
-            Kind::Plot => PlotView::new(&self.target, &self.settings).show(ui),
+            Kind::Plot => {
+                let points = ui.memory_mut(|memory| {
+                    memory
+                        .caches
+                        .cache::<SourcePlotComputed>()
+                        .get(SourcePlotKey {
+                            data_frame: &self.target,
+                            settings: &self.settings,
+                        })
+                });
+                PlotView::new(points, &self.settings).show(ui)
+            }
             Kind::Table => TableView::new(&self.target, &self.settings, &mut self.state).show(ui),
         };
     }
 
     fn window(&mut self, ui: &mut Ui) {
-        Window::new(format!("{GEAR} Source settings"))
+        Window::new(ui.localize("source-settings"))
             .id(ui.auto_id_with(ID_SOURCE))
             .open(&mut self.state.open_settings_window)
             .show(ui.ctx(), |ui| {

@@ -87,19 +87,21 @@ impl TableView<'_> {
                     .on_hover_localized("mode.hover");
             }
             (0, FA) => {
-                ui.heading(ui.localize("fatty_acid"));
+                ui.heading(ui.localize("fatty-acid"))
+                    .on_hover_localized("fatty-acid.abbreviation");
             }
             (0, DISTANCE) => {
                 ui.heading(ui.localize("distance"));
             }
             // Bottom
             (1, mode::ONSET) => {
-                ui.heading(ui.localize("mode-onset_temperature"))
-                    .on_hover_localized("mode-onset_temperature.hover");
+                ui.heading(ui.localize("onset-temperature.abbreviation"))
+                    .on_hover_localized("onset-temperature");
             }
             (1, mode::STEP) => {
-                ui.heading(ui.localize("mode-temperature_step"))
-                    .on_hover_localized("mode-temperature_step.hover");
+                ui.heading(ui.localize("temperature-step.abbreviation"))
+                    .on_hover_localized("temperature-step")
+                    .on_hover_localized("temperature-step.hover");
             }
             (1, fatty_acid::FROM) => {
                 ui.heading(ui.localize("from"));
@@ -108,15 +110,18 @@ impl TableView<'_> {
                 ui.heading(ui.localize("to"));
             }
             (1, distance::TIME) => {
-                ui.heading(ui.localize("retention_time"));
+                ui.heading(ui.localize("retention-time-distance.abbreviation"))
+                    .on_hover_localized("retention-time-distance")
+                    .on_hover_localized("retention-time-distance.hover");
             }
             (1, distance::ECL) => {
-                ui.heading(ui.localize("equivalent_chain_length.abbreviation"))
-                    .on_hover_localized("equivalent_chain_length");
+                ui.heading(ui.localize("equivalent-chain-length-distance.abbreviation"))
+                    .on_hover_localized("equivalent-chain-length-distance")
+                    .on_hover_localized("equivalent-chain-length-distance.hover");
             }
             (1, distance::EUCLIDEAN) => {
-                ui.heading(ui.localize("euclidean_distance"))
-                    .on_hover_localized("euclidean_distance.hover");
+                ui.heading(ui.localize("euclidean-distance"))
+                    .on_hover_localized("euclidean-distance.hover");
             }
             _ => {}
         }
@@ -173,7 +178,7 @@ impl TableView<'_> {
                 });
             }
             (row, distance::ECL) => {
-                let ecl = self.data_frame["ECL"].struct_().unwrap();
+                let ecl = self.data_frame["EquivalentChainLength"].struct_().unwrap();
                 let distance = ecl.field_by_name("Distance").unwrap();
                 ui.add(
                     FloatValue::new(distance.f64().unwrap().get(row))

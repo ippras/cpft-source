@@ -29,7 +29,7 @@ impl Computer {
                     .alias("FromTime"),
                 col("ChainLength")
                     .struct_()
-                    .field_by_name("ECL")
+                    .field_by_name("EquivalentChainLength")
                     .alias("FromECL"),
             ])
             .with_row_index("LeftIndex", None)
@@ -46,7 +46,7 @@ impl Computer {
                             .alias("ToTime"),
                         col("ChainLength")
                             .struct_()
-                            .field_by_name("ECL")
+                            .field_by_name("EquivalentChainLength")
                             .alias("ToECL"),
                     ])
                     .with_row_index("RightIndex", None),
@@ -103,14 +103,17 @@ impl Computer {
                         .over([col("From").struct_().field_by_name("Mode")])
                         .alias("Distance"),
                 ])
-                .alias("ECL"),
+                .alias("EquivalentChainLength"),
             ])
             .with_column(
                 (col("RetentionTime")
                     .struct_()
                     .field_by_name("Distance")
                     .pow(2)
-                    + col("ECL").struct_().field_by_name("Distance").pow(2))
+                    + col("EquivalentChainLength")
+                        .struct_()
+                        .field_by_name("Distance")
+                        .pow(2))
                 .sqrt()
                 .alias("Distance"),
             );
@@ -120,7 +123,7 @@ impl Computer {
 
 impl ComputerMut<Key<'_>, DataFrame> for Computer {
     fn compute(&mut self, key: Key<'_>) -> DataFrame {
-        self.try_compute(key).unwrap()
+        self.try_compute(key).expect("compute distance")
     }
 }
 
@@ -143,5 +146,5 @@ impl Hash for Key<'_> {
     }
 }
 
-pub(super) mod filter;
+pub(super) mod filtered;
 pub(super) mod unique;

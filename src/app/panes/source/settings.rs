@@ -1,11 +1,11 @@
 use crate::{
-    app::{MAX_PRECISION, text::Text},
-    special::{column::mode::ColumnExt as _, data_frame::DataFrameExt as _},
+    app::MAX_PRECISION, localization::Text, special::data_frame::DataFrameExt as _,
+    utils::VecExt as _,
 };
-use egui::{ComboBox, Grid, PopupCloseBehavior, RichText, Slider, Ui, emath::Float};
+use egui::{ComboBox, Grid, PopupCloseBehavior, RichText, Slider, TextWrapMode, Ui, emath::Float};
 use egui_ext::LabeledSeparator;
 use egui_l20n::{ResponseExt, UiExt as _};
-use egui_phosphor::regular::{FUNNEL, FUNNEL_X, TRASH};
+use egui_phosphor::regular::{FUNNEL, FUNNEL_X};
 use lipid::{
     fatty_acid::display::{COMMON, DisplayWithOptions as _},
     prelude::*,
@@ -13,10 +13,7 @@ use lipid::{
 use polars::prelude::*;
 use polars_utils::{format_list_container_truncated, format_list_truncated};
 use serde::{Deserialize, Serialize};
-use std::{
-    convert::identity,
-    hash::{Hash, Hasher},
-};
+use std::hash::{Hash, Hasher};
 
 /// Settings
 #[derive(Clone, Debug, Deserialize, Hash, PartialEq, Serialize)]
@@ -31,11 +28,12 @@ pub(crate) struct Settings {
     pub(crate) logarithmic: bool,
     pub(crate) relative: Option<FattyAcid>,
     pub(crate) filter: Filter,
-    pub(crate) sort: Sort,
+    pub(crate) sort: SortBy,
     pub(crate) order: Order,
 
-    pub(crate) group: Group,
+    // pub(crate) group: Group,
     pub(crate) legend: bool,
+    pub(crate) radius_of_points: u8,
 }
 
 impl Settings {
@@ -51,10 +49,11 @@ impl Settings {
             logarithmic: false,
             relative: None,
             filter: Filter::new(),
-            sort: Sort::Time,
+            sort: SortBy::Time,
             order: Order::Ascending,
 
-            group: Group::FattyAcid,
+            // group: Group::FattyAcid,
+            radius_of_points: 2,
             legend: true,
         }
     }
@@ -83,8 +82,8 @@ impl Settings {
                 ui.end_row();
 
                 // Relative
-                ui.label(ui.localize("relative"))
-                    .on_hover_localized("relative.hover");
+                ui.label(ui.localize("relative-fatty-acid"))
+                    .on_hover_localized("relative-fatty-acid.hover");
                 ui.horizontal(|ui| {
                     let selected_text = self
                         .relative
@@ -116,8 +115,8 @@ impl Settings {
 
                 // DDOF
                 // https://numpy.org/devdocs/reference/generated/numpy.std.html
-                ui.label(ui.localize("delta_degrees_of_freedom.abbreviation"))
-                    .on_hover_localized("delta_degrees_of_freedom")
+                ui.label(ui.localize("delta-degrees-of-freedom.abbreviation"))
+                    .on_hover_localized("delta-degrees-of-freedom")
                     .on_hover_ui(|ui| {
                         ui.hyperlink(
                             "https://numpy.org/devdocs/reference/generated/numpy.std.html",
@@ -136,144 +135,31 @@ impl Settings {
                 ui.labeled_separator(RichText::new(ui.localize("filter")).heading());
                 ui.end_row();
 
-                // Onset temperature filter
-                ui.label(ui.localize("filter-by-onset-temperature"))
-                    .on_hover_localized("filter-by-onset-temperature.hover");
-                ui.horizontal(|ui| -> PolarsResult<()> {
-                    ComboBox::from_id_salt("OnsetTemperatureFilter")
-                        .selected_text(format!("{:?}", self.filter.mode.onset_temperature))
-                        .show_ui(ui, |ui| -> PolarsResult<()> {
-                            let current_value = &mut self.filter.mode.onset_temperature;
-                            for selected_value in
-                                &data_frame["Mode"].mode().onset_temperature()?.unique()
-                            {
-                                ui.selectable_value(
-                                    current_value,
-                                    selected_value,
-                                    AnyValue::from(selected_value).to_string(),
-                                );
-                            }
-                            Ok(())
-                        })
-                        .inner
-                        .transpose()?;
-                    if ui.button(TRASH).clicked() {
-                        self.filter.mode.onset_temperature = None;
-                    }
-                    Ok(())
-                })
-                .inner?;
-                ui.end_row();
-
-                // Temperature step filter
-                ui.label(ui.localize("filter-by-temperature-step"))
-                    .on_hover_localized("filter-by-temperature-step.hover");
-                ui.horizontal(|ui| -> PolarsResult<()> {
-                    ComboBox::from_id_salt("TemperatureStepFilter")
-                        .selected_text(format!("{:?}", self.filter.mode.temperature_step))
-                        .show_ui(ui, |ui| -> PolarsResult<()> {
-                            let current_value = &mut self.filter.mode.temperature_step;
-                            for selected_value in &data_frame.mode().temperature_step()?.unique() {
-                                ui.selectable_value(
-                                    current_value,
-                                    selected_value,
-                                    AnyValue::from(selected_value).to_string(),
-                                );
-                            }
-                            Ok(())
-                        })
-                        .inner
-                        .transpose()?;
-                    if ui.button(TRASH).clicked() {
-                        self.filter.mode.temperature_step = None;
-                    }
-                    Ok(())
-                })
-                .inner?;
-                ui.end_row();
-
-                // Fatty acids filter
-                ui.label(ui.localize("filter-by-fatty-acids"))
-                    .on_hover_localized("filter-by-fatty-acids.hover");
-                let text = format_list_truncated!(
-                    self.filter
-                        .fatty_acids
-                        .iter()
-                        .map(|fatty_acid| fatty_acid.display(COMMON)),
-                    2
-                );
-                ui.horizontal(|ui| -> PolarsResult<()> {
-                    ComboBox::from_id_salt("FattyAcidsFilter")
-                        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-                        .selected_text(text)
-                        .show_ui(ui, |ui| -> PolarsResult<()> {
-                            let fatty_acids = data_frame["FattyAcid"]
-                                .unique()?
-                                .sort(Default::default())?
-                                .fa();
-                            for index in 0..fatty_acids.len() {
-                                if let Ok(Some(fatty_acid)) = fatty_acids.get(index) {
-                                    let contains = self.filter.fatty_acids.contains(&fatty_acid);
-                                    let mut selected = contains;
-                                    let response = ui.toggle_value(
-                                        &mut selected,
-                                        format!("{:#}", (&fatty_acid).display(COMMON)),
-                                    );
-                                    if selected && !contains {
-                                        self.filter.fatty_acids.push(fatty_acid);
-                                    } else if !selected && contains {
-                                        self.filter.remove(&fatty_acid);
-                                    }
-                                    response.context_menu(|ui| {
-                                        if ui.button(format!("{FUNNEL} Select all")).clicked() {
-                                            self.filter.fatty_acids = fatty_acids
-                                                .clone()
-                                                .into_iter()
-                                                .filter_map(identity)
-                                                .collect();
-                                            ui.close_menu();
-                                        }
-                                        if ui.button(format!("{FUNNEL_X} Unselect all")).clicked() {
-                                            self.filter.fatty_acids = Vec::new();
-                                            ui.close_menu();
-                                        }
-                                    });
-                                }
-                            }
-                            Ok(())
-                        })
-                        .inner
-                        .transpose()?;
-                    if ui.button(TRASH).clicked() {
-                        self.filter.fatty_acids = Vec::new();
-                    }
-                    Ok(())
-                })
-                .inner?;
+                self.filter.show(ui, data_frame)?;
                 ui.end_row();
 
                 // Sort
                 ui.separator();
-                ui.labeled_separator(RichText::new(ui.localize("sort")).heading());
+                ui.labeled_separator(RichText::new(ui.localize("sort-by")).heading());
                 ui.end_row();
 
-                ui.label(ui.localize("sort"))
-                    .on_hover_localized("sort.hover");
+                ui.label(ui.localize("sort-by"))
+                    .on_hover_localized("sort-by.hover");
                 ComboBox::from_id_salt(ui.next_auto_id())
                     .selected_text(ui.localize(self.sort.text()))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.sort,
-                            Sort::FattyAcid,
-                            ui.localize(Sort::FattyAcid.text()),
+                            SortBy::FattyAcid,
+                            ui.localize(SortBy::FattyAcid.text()),
                         )
-                        .on_hover_localized(Sort::FattyAcid.hover_text());
+                        .on_hover_localized(SortBy::FattyAcid.hover_text());
                         ui.selectable_value(
                             &mut self.sort,
-                            Sort::Time,
-                            ui.localize(Sort::Time.text()),
+                            SortBy::Time,
+                            ui.localize(SortBy::Time.text()),
                         )
-                        .on_hover_localized(Sort::Time.hover_text());
+                        .on_hover_localized(SortBy::Time.hover_text());
                     })
                     .response
                     .on_hover_localized(self.sort.hover_text());
@@ -308,37 +194,43 @@ impl Settings {
                     ui.labeled_separator(RichText::new("Plot").heading());
                     ui.end_row();
 
-                    // Group
-                    ui.label("Group");
-                    ComboBox::from_id_salt(ui.next_auto_id())
-                        .selected_text(self.group.text())
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.group,
-                                Group::FattyAcid,
-                                Group::FattyAcid.text(),
-                            )
-                            .on_hover_text(Group::FattyAcid.hover_text());
-                            ui.selectable_value(
-                                &mut self.group,
-                                Group::OnsetTemperature,
-                                Group::OnsetTemperature.text(),
-                            )
-                            .on_hover_text(Group::OnsetTemperature.hover_text());
-                            ui.selectable_value(
-                                &mut self.group,
-                                Group::TemperatureStep,
-                                Group::TemperatureStep.text(),
-                            )
-                            .on_hover_text(Group::TemperatureStep.hover_text());
-                        })
-                        .response
-                        .on_hover_text(self.group.hover_text());
-                    ui.end_row();
+                    // // Group
+                    // ui.label("Group");
+                    // ComboBox::from_id_salt(ui.next_auto_id())
+                    //     .selected_text(self.group.text())
+                    //     .show_ui(ui, |ui| {
+                    //         ui.selectable_value(
+                    //             &mut self.group,
+                    //             Group::FattyAcid,
+                    //             Group::FattyAcid.text(),
+                    //         )
+                    //         .on_hover_text(Group::FattyAcid.hover_text());
+                    //         ui.selectable_value(
+                    //             &mut self.group,
+                    //             Group::OnsetTemperature,
+                    //             Group::OnsetTemperature.text(),
+                    //         )
+                    //         .on_hover_text(Group::OnsetTemperature.hover_text());
+                    //         ui.selectable_value(
+                    //             &mut self.group,
+                    //             Group::TemperatureStep,
+                    //             Group::TemperatureStep.text(),
+                    //         )
+                    //         .on_hover_text(Group::TemperatureStep.hover_text());
+                    //     })
+                    //     .response
+                    //     .on_hover_text(self.group.hover_text());
+                    // ui.end_row();
 
                     // Legend
                     ui.label(ui.localize("legend"));
                     ui.checkbox(&mut self.legend, "");
+                    ui.end_row();
+
+                    // Radius of points
+                    ui.label(ui.localize("radius-of-points"))
+                        .on_hover_localized("radius-of-points.hover");
+                    ui.add(Slider::new(&mut self.radius_of_points, 0..=u8::MAX).logarithmic(true));
                     ui.end_row();
                 }
                 Ok(())
@@ -389,73 +281,184 @@ pub(crate) enum Kind {
 }
 
 /// Filter
-#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub(crate) struct Filter {
-    pub(crate) mode: Mode,
+    // pub(crate) mode: Mode,
     pub(crate) fatty_acids: Vec<FattyAcid>,
+    pub(crate) onset_temperatures: Vec<f64>,
+    pub(crate) temperature_steps: Vec<f64>,
 }
 
 impl Filter {
     pub const fn new() -> Self {
         Self {
-            mode: Mode::new(),
             fatty_acids: Vec::new(),
+            onset_temperatures: Vec::new(),
+            temperature_steps: Vec::new(),
+        }
+    }
+}
+
+impl Hash for Filter {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.fatty_acids.hash(state);
+        for onset_temperature in &self.onset_temperatures {
+            onset_temperature.ord().hash(state);
+        }
+        for temperature_step in &self.temperature_steps {
+            temperature_step.ord().hash(state);
         }
     }
 }
 
 impl Filter {
-    fn remove(&mut self, target: &FattyAcid) -> Option<FattyAcid> {
-        let position = self
-            .fatty_acids
-            .iter()
-            .position(|source| source == target)?;
-        Some(self.fatty_acids.remove(position))
+    fn show(&mut self, ui: &mut Ui, data_frame: &DataFrame) -> PolarsResult<()> {
+        // Onset temperature filter
+        ui.label(ui.localize("filter-by-onset-temperature"))
+            .on_hover_localized("filter-by-onset-temperature.hover");
+        let text = format_list_truncated!(&self.onset_temperatures, 2);
+        ComboBox::from_id_salt("OnsetTemperatureFilter")
+            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+            .selected_text(text)
+            .show_ui(ui, |ui| -> PolarsResult<()> {
+                let onset_temperatures = data_frame.mode().onset_temperature()?.unique();
+                for onset_temperature in onset_temperatures.iter().flatten() {
+                    let checked = self.onset_temperatures.contains(&onset_temperature);
+                    let response =
+                        ui.selectable_label(checked, AnyValue::from(onset_temperature).to_string());
+                    if response.clicked() {
+                        if checked {
+                            self.onset_temperatures.remove_by_value(&onset_temperature);
+                        } else {
+                            self.onset_temperatures.push(onset_temperature);
+                        }
+                    }
+                    response.context_menu(|ui| {
+                        if ui.button(format!("{FUNNEL} Select all")).clicked() {
+                            self.onset_temperatures = onset_temperatures.iter().flatten().collect();
+                            ui.close_menu();
+                        }
+                        if ui.button(format!("{FUNNEL_X} Unselect all")).clicked() {
+                            self.onset_temperatures = Vec::new();
+                            ui.close_menu();
+                        }
+                    });
+                }
+                Ok(())
+            })
+            .inner
+            .transpose()?;
+        ui.end_row();
+
+        // Temperature step filter
+        ui.label(ui.localize("filter-by-temperature-step"))
+            .on_hover_localized("filter-by-temperature-step.hover");
+        let text = format_list_truncated!(&self.temperature_steps, 2);
+        ComboBox::from_id_salt("TemperatureStepFilter")
+            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+            .selected_text(text)
+            .show_ui(ui, |ui| -> PolarsResult<()> {
+                let temperature_steps = data_frame.mode().temperature_step()?.unique();
+                for temperature_step in temperature_steps.iter().flatten() {
+                    let checked = self.temperature_steps.contains(&temperature_step);
+                    let response =
+                        ui.selectable_label(checked, AnyValue::from(temperature_step).to_string());
+                    if response.clicked() {
+                        if checked {
+                            self.temperature_steps.remove_by_value(&temperature_step);
+                        } else {
+                            self.temperature_steps.push(temperature_step);
+                        }
+                    }
+                    response.context_menu(|ui| {
+                        if ui.button(format!("{FUNNEL} Select all")).clicked() {
+                            self.temperature_steps = temperature_steps.iter().flatten().collect();
+                            ui.close_menu();
+                        }
+                        if ui.button(format!("{FUNNEL_X} Unselect all")).clicked() {
+                            self.temperature_steps = Vec::new();
+                            ui.close_menu();
+                        }
+                    });
+                }
+                Ok(())
+            })
+            .inner
+            .transpose()?;
+        ui.end_row();
+
+        // Fatty acids filter
+        ui.label(ui.localize("filter-by-fatty-acids"))
+            .on_hover_localized("filter-by-fatty-acids.hover");
+        let text = format_list_truncated!(
+            self.fatty_acids
+                .iter()
+                .map(|fatty_acid| fatty_acid.display(COMMON)),
+            2
+        );
+        let inner_response = ComboBox::from_id_salt("FattyAcidsFilter")
+            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+            .selected_text(text)
+            .show_ui(ui, |ui| -> PolarsResult<()> {
+                let fatty_acids = data_frame["FattyAcid"]
+                    .unique()?
+                    .sort(Default::default())?
+                    .fa();
+                for index in 0..fatty_acids.len() {
+                    let Some(fatty_acid) = fatty_acids.get(index)? else {
+                        continue;
+                    };
+                    let checked = self.fatty_acids.contains(&fatty_acid);
+                    let response = ui
+                        .selectable_label(checked, format!("{:#}", (&fatty_acid).display(COMMON)));
+                    if response.clicked() {
+                        if checked {
+                            self.fatty_acids.remove_by_value(&fatty_acid);
+                        } else {
+                            self.fatty_acids.push(fatty_acid);
+                        }
+                    }
+                    response.context_menu(|ui| {
+                        if ui.button(format!("{FUNNEL} Select all")).clicked() {
+                            self.fatty_acids = fatty_acids.clone().into_iter().flatten().collect();
+                            ui.close_menu();
+                        }
+                        if ui.button(format!("{FUNNEL_X} Unselect all")).clicked() {
+                            self.fatty_acids = Vec::new();
+                            ui.close_menu();
+                        }
+                    });
+                }
+                Ok(())
+            });
+        inner_response.inner.transpose()?;
+        inner_response.response.on_hover_ui(|ui| {
+            ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
+            ui.label(self.fatty_acids.len().to_string());
+        });
+        Ok(())
     }
 }
 
-/// Mode
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub(crate) struct Mode {
-    pub(crate) onset_temperature: Option<f64>,
-    pub(crate) temperature_step: Option<f64>,
-}
-
-impl Mode {
-    pub const fn new() -> Self {
-        Self {
-            onset_temperature: None,
-            temperature_step: None,
-        }
-    }
-}
-
-impl Hash for Mode {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.onset_temperature.map(Float::ord).hash(state);
-        self.temperature_step.map(Float::ord).hash(state);
-    }
-}
-
-/// Sort
+/// Sort by
 #[derive(Clone, Debug, Deserialize, Hash, PartialEq, Serialize)]
-pub(crate) enum Sort {
+pub(crate) enum SortBy {
     FattyAcid,
     Time,
 }
 
-impl Text for Sort {
+impl Text for SortBy {
     fn text(&self) -> &'static str {
         match self {
-            Self::FattyAcid => "sort-by_fatty_acid",
-            Self::Time => "sort-by_time",
+            Self::FattyAcid => "sort-by-fatty-acids",
+            Self::Time => "sort-by-retention-time",
         }
     }
 
     fn hover_text(&self) -> &'static str {
         match self {
-            Self::FattyAcid => "sort-by_fatty_acid.hover",
-            Self::Time => "sort-by_time.hover",
+            Self::FattyAcid => "sort-by-fatty-acids.hover",
+            Self::Time => "sort-by-retention-time.hover",
         }
     }
 }
