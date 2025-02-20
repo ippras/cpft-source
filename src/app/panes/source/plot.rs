@@ -93,12 +93,9 @@ impl PlotView<'_> {
             for data in &self.data.lines.temperature_step {
                 // Line
                 let name = format!("{:#}", (&data.fatty_acid).display(COMMON));
-                let mut line = Line::new(PlotPoints::Borrowed(&data.points)).name(&name);
-                if data.fatty_acid.is_unsaturated() {
-                    line = line.color(color(data.onset_temperature as _));
-                } else {
-                    line = line.color(color(data.onset_temperature as _));
-                };
+                let mut line = Line::new(PlotPoints::Borrowed(&data.points))
+                    .name(&name)
+                    .color(color(data.onset_temperature as _));
                 if data.fatty_acid.is_unsaturated() {
                     line = line.style(LineStyle::Dashed { length: 16.0 });
                 }
