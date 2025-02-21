@@ -23,7 +23,7 @@ pub(crate) struct Settings {
     pub(crate) sticky: usize,
     pub(crate) truncate: bool,
 
-    pub(crate) kind: Kind,
+    pub(crate) view: View,
     pub(crate) ddof: u8,
     pub(crate) logarithmic: bool,
     pub(crate) relative: Option<FattyAcid>,
@@ -44,7 +44,7 @@ impl Settings {
             sticky: 0,
             truncate: false,
 
-            kind: Kind::Table,
+            view: View::Table,
             ddof: 1,
             logarithmic: false,
             relative: None,
@@ -188,7 +188,7 @@ impl Settings {
                     .on_hover_localized(self.order.hover_text());
                 ui.end_row();
 
-                if let Kind::Plot = self.kind {
+                if let View::Plot = self.view {
                     // Plot
                     ui.separator();
                     ui.labeled_separator(RichText::new("Plot").heading());
@@ -272,12 +272,28 @@ impl Text for Group {
     }
 }
 
-/// Kind
+/// View
 #[derive(Clone, Copy, Debug, Default, Deserialize, Hash, PartialEq, Serialize)]
-pub(crate) enum Kind {
+pub(crate) enum View {
     Plot,
     #[default]
     Table,
+}
+
+impl Text for View {
+    fn text(&self) -> &'static str {
+        match self {
+            Self::Plot => "plot-view",
+            Self::Table => "table-view",
+        }
+    }
+
+    fn hover_text(&self) -> &'static str {
+        match self {
+            Self::Plot => "table-view.hover",
+            Self::Table => "plot-view.hover",
+        }
+    }
 }
 
 /// Filter

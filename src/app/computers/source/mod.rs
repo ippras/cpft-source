@@ -149,7 +149,7 @@ pub struct Key<'a> {
 
 impl Hash for Key<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.settings.kind.hash(state);
+        self.settings.view.hash(state);
         self.settings.ddof.hash(state);
         self.settings.logarithmic.hash(state);
         self.settings.relative.hash(state);

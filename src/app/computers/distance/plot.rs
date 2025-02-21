@@ -1,6 +1,6 @@
 use crate::app::{
     MAX_TEMPERATURE,
-    panes::source::settings::{Filter, Group, Order, Settings, SortBy, View},
+    panes::distance::settings::{Settings, SortBy},
 };
 use egui::{
     emath::{Float, OrderedFloat},
@@ -50,102 +50,63 @@ impl Computer {
             col("FattyAcid"),
             concat_arr(vec![col("RetentionTime"), col("EquivalentChainLength")])?.alias("Points"),
         ]);
-        let lazy_frame1 = lazy_frame
+        let lazy_frame = lazy_frame
             .group_by([col("FattyAcid"), col("OnsetTemperature")])
             .agg([col("TemperatureStep"), col("Points")]);
-        let data_frame = lazy_frame1.collect()?;
+        let data_frame = lazy_frame.collect()?;
         let mut value = Value::default();
-        for (((fatty_acid, onset_temperature), temperature_steps), points) in
-            data_frame["FattyAcid"]
-                .fa()
-                .into_iter()
-                .zip(data_frame["OnsetTemperature"].f64()?.into_no_null_iter())
-                .zip(data_frame["TemperatureStep"].list()?.into_no_null_iter())
-                .zip(data_frame["Points"].list()?.into_no_null_iter())
-        {
-            let fatty_acid = fatty_acid.unwrap(); // TODO
-            let mut line_points = Vec::new();
-            for (temperature_step, points) in temperature_steps
-                .f64()?
-                .into_no_null_iter()
-                .zip(points.array()?.into_no_null_iter())
-            {
-                let points = points.f64()?;
-                let Some(x) = points.get(0) else {
-                    continue;
-                };
-                let Some(y) = points.get(1) else {
-                    continue;
-                };
-                line_points.push(PlotPoint::new(x, y));
-                value
-                    .points
-                    .entry(PointKey::new(x, y))
-                    .or_default()
-                    .insert(PointValue {
-                        onset_temperature,
-                        temperature_step,
-                    });
-            }
-            value.lines.temperature_step.push(TemperatureStepLine {
-                fatty_acid,
-                onset_temperature,
-                points: line_points,
-            });
-            // value.onset_temperatures.push(OnsetTemperaturePoints {
-            //     fatty_acid,
-            //     onset_temperature,
-            //     points: line_points,
-            // });
-            // let index = Int64Chunked::from_vec(PlSmallStr::EMPTY, vec![1]);
-            // let z = points.array()?.array_get(&index, false)?;
-        }
+        // for (((fatty_acid, onset_temperature), temperature_steps), points) in
+        //     data_frame["FattyAcid"]
+        //         .fa()
+        //         .into_iter()
+        //         .zip(data_frame["OnsetTemperature"].f64()?.into_no_null_iter())
+        //         .zip(data_frame["TemperatureStep"].list()?.into_no_null_iter())
+        //         .zip(data_frame["Points"].list()?.into_no_null_iter())
+        // {
+        //     let fatty_acid = fatty_acid.unwrap(); // TODO
+        //     let mut line_points = Vec::new();
+        //     for (temperature_step, points) in temperature_steps
+        //         .f64()?
+        //         .into_no_null_iter()
+        //         .zip(points.array()?.into_no_null_iter())
+        //     {
+        //         let points = points.f64()?;
+        //         let Some(x) = points.get(0) else {
+        //             continue;
+        //         };
+        //         let Some(y) = points.get(1) else {
+        //             continue;
+        //         };
+        //         line_points.push(PlotPoint::new(x, y));
+        //         value
+        //             .points
+        //             .entry(PointKey::new(x, y))
+        //             .or_default()
+        //             .insert(PointValue {
+        //                 onset_temperature,
+        //                 temperature_step,
+        //             });
+        //     }
+        //     value.lines.temperature_step.push(TemperatureStepLine {
+        //         fatty_acid,
+        //         onset_temperature,
+        //         points: line_points,
+        //     });
+        //     // value.onset_temperatures.push(OnsetTemperaturePoints {
+        //     //     fatty_acid,
+        //     //     onset_temperature,
+        //     //     points: line_points,
+        //     // });
+        //     // let index = Int64Chunked::from_vec(PlSmallStr::EMPTY, vec![1]);
+        //     // let z = points.array()?.array_get(&index, false)?;
+        // }
         Ok(value)
-
-        // // let lazy_frame = lazy_frame.rank()
-        // let lazy_frame = lazy_frame
-        //     .clone()
-        //     .group_by([col("FattyAcid"), col("OnsetTemperature")])
-        //     .agg([
-        //         col("TemperatureStep"),
-        //         col("RetentionTime"),
-        //         col("EquivalentChainLength"),
-        //     ])
-        //     .group_by([col("FattyAcid")])
-        //     .agg([
-        //         col("OnsetTemperature"),
-        //         col("TemperatureStep"),
-        //         col("RetentionTime"),
-        //         col("EquivalentChainLength"),
-        //     ]);
-
-        // let lazy_frame2 = lazy_frame
-        //     .clone()
-        //     .group_by([col("FattyAcid"), col("TemperatureStep")])
-        //     .agg([
-        //         col("OnsetTemperature"),
-        //         col("RetentionTime"),
-        //         col("EquivalentChainLength"),
-        //     ])
-        //     .group_by([col("FattyAcid")])
-        //     .agg([
-        //         col("TemperatureStep"),
-        //         col("OnsetTemperature"),
-        //         col("RetentionTime"),
-        //         col("EquivalentChainLength"),
-        //     ])
-        //     .sort(["FattyAcid"], Default::default());
-        // println!(
-        //     "lazy_frame2 by FattyAcid/TemperatureStep/OnsetTemperature: {}",
-        //     lazy_frame2.clone().collect().unwrap()
-        // );
-        // lazy_frame.collect()
     }
 }
 
 impl ComputerMut<Key<'_>, Value> for Computer {
     fn compute(&mut self, key: Key<'_>) -> Value {
-        self.try_compute(key).expect("compute plot source")
+        self.try_compute(key).expect("compute plot distance")
     }
 }
 
@@ -158,10 +119,7 @@ pub(crate) struct Key<'a> {
 
 impl Hash for Key<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.settings.ddof.hash(state);
-        self.settings.logarithmic.hash(state);
         self.settings.filter.hash(state);
-        self.settings.radius_of_points.hash(state);
     }
 }
 

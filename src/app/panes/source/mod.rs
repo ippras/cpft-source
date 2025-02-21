@@ -1,6 +1,6 @@
 use self::{
     plot::PlotView,
-    settings::{Kind, Settings},
+    settings::{Settings, View},
     state::State,
     table::TableView,
 };
@@ -11,12 +11,14 @@ use crate::{
 use egui::{Button, CursorIcon, Id, Response, RichText, Ui, Window, util::hash};
 use egui_l20n::UiExt as _;
 use egui_phosphor::regular::{
-    ARROWS_CLOCKWISE, ARROWS_HORIZONTAL, CHART_BAR, EXCLUDE, FLOPPY_DISK, GEAR, TABLE,
+    ARROWS_CLOCKWISE, ARROWS_HORIZONTAL, EXCLUDE, FLOPPY_DISK, GEAR, TABLE,
 };
 use metadata::MetaDataFrame;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::error;
+
+use super::widgets::ViewWidget;
 
 const ID_SOURCE: &str = "Source";
 
@@ -78,24 +80,13 @@ impl Pane {
             RichText::new(GEAR).heading(),
         );
         ui.separator();
-        // Kind
-        match self.settings.kind {
-            Kind::Plot => {
-                if ui.button(RichText::new(TABLE).heading()).clicked() {
-                    self.settings.kind = Kind::Table;
-                }
-            }
-            Kind::Table => {
-                if ui.button(RichText::new(CHART_BAR).heading()).clicked() {
-                    self.settings.kind = Kind::Plot;
-                }
-            }
-        };
+        // View
+        ui.add(ViewWidget::new(&mut self.settings.view));
         ui.separator();
         // Distance
         if ui
             .add_enabled(
-                self.settings.kind == Kind::Table,
+                self.settings.view == View::Table,
                 Button::new(RichText::new(EXCLUDE).heading()),
             )
             .clicked()
@@ -134,8 +125,8 @@ impl Pane {
                 settings: &self.settings,
             })
         });
-        match self.settings.kind {
-            Kind::Plot => {
+        match self.settings.view {
+            View::Plot => {
                 let points = ui.memory_mut(|memory| {
                     memory
                         .caches
@@ -147,7 +138,7 @@ impl Pane {
                 });
                 PlotView::new(points, &self.settings).show(ui)
             }
-            Kind::Table => TableView::new(&self.target, &self.settings, &mut self.state).show(ui),
+            View::Table => TableView::new(&self.target, &self.settings, &mut self.state).show(ui),
         };
     }
 

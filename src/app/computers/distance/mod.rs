@@ -150,3 +150,4 @@ impl Hash for Key<'_> {
 }
 
 pub(super) mod filtered;
+pub(super) mod plot;

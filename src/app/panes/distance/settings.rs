@@ -2,7 +2,7 @@ use super::table::LEN;
 use crate::{
     app::{
         MAX_PRECISION,
-        panes::source::settings::{Filter, Order},
+        panes::source::settings::{Filter, Order, View},
     },
     localization::Text,
 };
@@ -22,6 +22,8 @@ pub(crate) struct Settings {
 
     pub(crate) sort: Sort,
     pub(crate) filter: Filter,
+
+    pub(crate) view: View,
 }
 
 impl Settings {
@@ -33,6 +35,7 @@ impl Settings {
             truncate: false,
             sort: Sort::new(),
             filter: Filter::new(),
+            view: View::Table,
         }
     }
 

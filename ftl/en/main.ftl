@@ -121,3 +121,8 @@ sort-by-median = Median
     .hover = Select the median of the values to sort
 sort-by-minimum = Minimum
     .hover = Select the minimum of the values to sort
+
+plot-view = { -plot } Plot
+    .hover = View as plot
+table-view = { -table } Table
+    .hover = View as table

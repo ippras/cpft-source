@@ -1,7 +1,9 @@
 use self::{settings::Settings, state::State, table::TableView};
+use super::{source::settings::View, widgets::ViewWidget};
 use crate::{
     app::computers::{
         DistanceComputed, DistanceFilteredComputed, DistanceFilteredKey, DistanceKey,
+        DistancePlotComputed, DistancePlotKey,
     },
     utils::save,
 };
@@ -74,6 +76,9 @@ impl Pane {
             RichText::new(GEAR).heading(),
         );
         ui.separator();
+        // View
+        ui.add(ViewWidget::new(&mut self.settings.view));
+        ui.separator();
         // Save
         let name = format!("{}.distance.ipc", self.source.frame.meta.title());
         if ui
@@ -110,7 +115,21 @@ impl Pane {
                     settings: &self.settings,
                 })
         });
-        TableView::new(&data_frame, &self.settings, &mut self.state).show(ui);
+        match self.settings.view {
+            View::Plot => {
+                let points = ui.memory_mut(|memory| {
+                    memory
+                        .caches
+                        .cache::<DistancePlotComputed>()
+                        .get(DistancePlotKey {
+                            data_frame: &data_frame,
+                            settings: &self.settings,
+                        })
+                });
+                // PlotView::new(points, &self.settings).show(ui)
+            }
+            View::Table => TableView::new(&data_frame, &self.settings, &mut self.state).show(ui),
+        };
     }
 
     fn window(&mut self, ui: &mut Ui) {
