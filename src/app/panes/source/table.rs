@@ -184,12 +184,15 @@ impl TableView<'_> {
                 let onset_temperature = mode.field_by_name("OnsetTemperature")?;
                 ui.label(onset_temperature.str_value(row)?)
                     .on_hover_ui(|ui| {
-                        let dead_time = self.data_frame["DeadTime"]
-                            .f64()
-                            .unwrap()
-                            .get(row)
-                            .expect("DeadTime column not found");
-                        ui.label(dead_time.to_string());
+                        (|| -> PolarsResult<()> {
+                            let Some(dead_time) = self.data_frame["DeadTime"].f64()?.get(row)
+                            else {
+                                polars_bail!(NoData: "DeadTime[{row}]");
+                            };
+                            ui.label(dead_time.to_string());
+                            Ok(())
+                        })()
+                        .unwrap()
                     });
             }
             (row, mode::STEP) => {
@@ -199,7 +202,9 @@ impl TableView<'_> {
             }
             (row, FATTY_ACID) => {
                 let fatty_acids = self.data_frame.fa();
-                let fatty_acid = fatty_acids.get(row)?.unwrap();
+                let Some(fatty_acid) = fatty_acids.get(row)? else {
+                    polars_bail!(NoData: "FattyAcid[{row}]");
+                };
                 let text = format!("{:#}", fatty_acid.display(COMMON));
                 ui.label(&text).on_hover_text(&text);
             }
@@ -219,27 +224,35 @@ impl TableView<'_> {
                     FloatValue::new(mean.f64()?.get(row)).precision(Some(self.settings.precision)),
                 )
                 .on_hover_ui(|ui| {
-                    let standard_deviation = absolute.field_by_name("StandardDeviation").unwrap();
-                    ui.horizontal(|ui| {
-                        ui.label(mean.str_value(row).unwrap());
-                        ui.label("±");
-                        ui.label(standard_deviation.str_value(row).unwrap());
-                    });
+                    (|| -> PolarsResult<()> {
+                        let mean = mean.str_value(row)?;
+                        let standard_deviation = absolute.field_by_name("StandardDeviation")?;
+                        let standard_deviation = standard_deviation.str_value(row)?;
+                        ui.horizontal(|ui| {
+                            ui.label(mean);
+                            ui.label("±");
+                            ui.label(standard_deviation);
+                        });
+                        Ok(())
+                    })()
+                    .unwrap()
                 })
                 .on_hover_ui(|ui| {
-                    ui.heading("Repeats");
-                    let values = absolute
-                        .field_by_name("Values")
-                        .unwrap()
-                        .list()
-                        .unwrap()
-                        .get_as_series(row)
-                        .unwrap();
-                    ui.vertical(|ui| {
-                        for value in values.iter() {
-                            ui.label(value.to_string());
-                        }
-                    });
+                    (|| -> PolarsResult<()> {
+                        ui.heading("Repeats");
+                        let Some(values) =
+                            absolute.field_by_name("Values")?.list()?.get_as_series(row)
+                        else {
+                            polars_bail!(NoData: "Values[{row}]");
+                        };
+                        ui.vertical(|ui| {
+                            for value in values.iter() {
+                                ui.label(value.to_string());
+                            }
+                        });
+                        Ok(())
+                    })()
+                    .unwrap()
                 });
             }
             (row, retention_time::RELATIVE) => {
@@ -300,23 +313,28 @@ impl TableView<'_> {
                 )
                 .on_hover_ui(|ui| {
                     Grid::new(ui.next_auto_id()).show(ui, |ui| {
-                        ui.label("[RCO]+");
-                        let rcoo = mass.field_by_name("RCO").unwrap();
-                        ui.label(rcoo.str_value(row).unwrap());
-                        ui.end_row();
+                        (|| -> PolarsResult<()> {
+                            ui.label("[RCO]+");
+                            let rcoo = mass.field_by_name("RCO")?;
+                            ui.label(rcoo.str_value(row)?);
+                            ui.end_row();
 
-                        ui.label("[RCOO]-");
-                        let rcoo = mass.field_by_name("RCOO").unwrap();
-                        ui.label(rcoo.str_value(row).unwrap());
-                        ui.end_row();
+                            ui.label("[RCOO]-");
+                            let rcoo = mass.field_by_name("RCOO")?;
+                            ui.label(rcoo.str_value(row)?);
+                            ui.end_row();
 
-                        ui.label("RCOOH");
-                        let rcooh = mass.field_by_name("RCOOH").unwrap();
-                        ui.label(rcooh.str_value(row).unwrap());
-                        ui.end_row();
+                            ui.label("RCOOH");
+                            let rcooh = mass.field_by_name("RCOOH")?;
+                            ui.label(rcooh.str_value(row)?);
+                            ui.end_row();
 
-                        ui.label("RCOOCH3");
-                        ui.label(rcooch3.str_value(row).unwrap());
+                            ui.label("RCOOCH3");
+                            ui.label(rcooch3.str_value(row)?);
+
+                            Ok(())
+                        })()
+                        .unwrap()
                     });
                 });
             }
@@ -339,7 +357,6 @@ impl TableView<'_> {
                 );
             }
             _ => unreachable!(),
-            // _ => {}
         }
         Ok(())
     }

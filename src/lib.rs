@@ -1,3 +1,5 @@
+#![feature(tuple_trait)]
+
 pub use app::App;
 
 mod app;

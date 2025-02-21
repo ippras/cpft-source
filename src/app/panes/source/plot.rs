@@ -1,13 +1,11 @@
 use crate::app::computers::{SourcePlotValue, source::plot::PointKey};
 
 use super::Settings;
-use egui::{Id, Ui, emath::Float, util::hash};
+use egui::Ui;
 use egui_ext::color;
 use egui_l20n::UiExt;
-use egui_plot::{
-    Legend, Line, LineStyle, MarkerShape, Plot, PlotItem, PlotPoint, PlotPoints, Points,
-};
-use itertools::{Itertools, izip};
+use egui_plot::{Legend, Line, LineStyle, MarkerShape, Plot, PlotPoint, PlotPoints, Points};
+use itertools::Itertools;
 use lipid::{
     fatty_acid::{
         FattyAcidExt as _,

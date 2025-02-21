@@ -1,6 +1,6 @@
 [package]
 name = "cpft"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 
 [dependencies]
@@ -8,9 +8,9 @@ anyhow = "1.0.96"
 eframe = { version = "0.31.0", default-features = false, features = [
     "accesskit",
     "default_fonts",
-    "glow",
     "persistence",
     "wayland",
+    "wgpu",
 ] }
 egui = "0.31.0"
 egui-phosphor = "0.9.0"

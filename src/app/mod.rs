@@ -4,8 +4,9 @@ use anyhow::Result;
 use data::Data;
 use eframe::{APP_KEY, get_value, set_value};
 use egui::{
-    Align, Align2, CentralPanel, Color32, FontDefinitions, Frame, Grid, Id, Label, LayerId, Layout,
-    Order, RichText, ScrollArea, TextStyle, TopBottomPanel, menu::bar, warn_if_debug_build,
+    Align, Align2, CentralPanel, Color32, Context, FontDefinitions, Frame, Grid, Id, Label,
+    LayerId, Layout, Order, RichText, ScrollArea, TextStyle, TopBottomPanel, menu::bar,
+    warn_if_debug_build,
 };
 use egui_ext::{DroppedFileExt, HoveredFileExt, LightDarkButton};
 use egui_l20n::{ResponseExt as _, ui::locale_button::LocaleButton};
@@ -71,7 +72,7 @@ impl App {
             .unwrap_or_default()
     }
 
-    fn drag_and_drop(&mut self, ctx: &egui::Context) {
+    fn drag_and_drop(&mut self, ctx: &Context) {
         // Preview hovering files
         if let Some(text) = ctx.input(|input| {
             (!input.raw.hovered_files.is_empty()).then(|| {
@@ -166,14 +167,14 @@ impl App {
 }
 
 impl App {
-    fn panels(&mut self, ctx: &egui::Context) {
+    fn panels(&mut self, ctx: &Context) {
         self.top_panel(ctx);
         self.bottom_panel(ctx);
         self.central_panel(ctx);
     }
 
     // Bottom panel
-    fn bottom_panel(&mut self, ctx: &egui::Context) {
+    fn bottom_panel(&mut self, ctx: &Context) {
         TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 warn_if_debug_build(ui);
@@ -184,7 +185,7 @@ impl App {
     }
 
     // Central panel
-    fn central_panel(&mut self, ctx: &egui::Context) {
+    fn central_panel(&mut self, ctx: &Context) {
         CentralPanel::default()
             .frame(Frame::central_panel(&ctx.style()).inner_margin(0))
             .show(ctx, |ui| {
@@ -196,7 +197,7 @@ impl App {
     }
 
     // Top panel
-    fn top_panel(&mut self, ctx: &egui::Context) {
+    fn top_panel(&mut self, ctx: &Context) {
         TopBottomPanel::top("TopPanel").show(ctx, |ui| {
             bar(ui, |ui| {
                 ScrollArea::horizontal().show(ui, |ui| {
@@ -293,9 +294,10 @@ impl App {
                                     ui.end_row();
                                 }
 
-                                ui.label("Authors");
-                                ui.label(meta.authors.join(", "));
-                                ui.end_row();
+                                // TODO
+                                // ui.label("Authors");
+                                // ui.label(meta.authors.join(", "));
+                                // ui.end_row();
 
                                 if let Some(version) = &meta.version {
                                     ui.label("Version");
@@ -330,7 +332,7 @@ impl App {
 }
 
 impl App {
-    fn distance(&mut self, ctx: &egui::Context) {
+    fn distance(&mut self, ctx: &Context) {
         if let Some(frame) = ctx.data_mut(|data| data.remove_temp(Id::new("Distance"))) {
             self.tree.insert_pane::<VERTICAL>(Pane::distance(frame));
         }
@@ -344,7 +346,7 @@ impl eframe::App for App {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.distance(ctx);
         self.panels(ctx);
         self.drag_and_drop(ctx);
