@@ -15,7 +15,7 @@ eframe = { version = "0.31.0", default-features = false, features = [
 egui = "0.31.0"
 egui-phosphor = "0.9.0"
 egui_ext = { git = "https://github.com/kgv/egui_ext" }
-egui_extras = { version = "0.31.0", features = ["svg"] }
+egui_extras = "0.31.0"
 egui_l20n = { git = "https://github.com/kgv/egui_l20n", features = ["macros"] }
 egui_plot = "0.31.0"
 egui_table = "0.3.0"
@@ -23,7 +23,7 @@ egui_tiles = "0.12.0"
 egui_tiles_ext = { git = "https://github.com/kgv/egui_tiles_ext" }
 itertools = "0.14.0"
 lipid = { git = "https://github.com/ippras/lipid", features = ["polars"] }
-log = "0.4.25"
+log = "0.4.26"
 metadata = { git = "https://github.com/ippras/metadata" }
 nalgebra = "0.33.2"
 polars = { version = "0.46.0", features = [
@@ -54,12 +54,10 @@ polars = { version = "0.46.0", features = [
 polars-utils = { git = "https://github.com/pola-rs/polars", rev = "65848bc2ff4bda33809ed8be2517594df5b53d26", features = [
     "nightly",
 ] }
+polars_ext = { git = "https://github.com/kgv/polars_ext" }
 serde = { version = "1.0.218", features = ["derive"] }
 tracing = "0.1.41"
 uom = { version = "0.36.0", features = ["serde"] }
-
-# egui_commonmark = "0.20.0"
-# mathjax_svg = "3.1.2"
 
 # native
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

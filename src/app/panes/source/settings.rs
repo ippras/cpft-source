@@ -37,11 +37,11 @@ pub(crate) struct Settings {
 }
 
 impl Settings {
-    pub(crate) const fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             precision: 2,
             resizable: false,
-            sticky: 1,
+            sticky: 0,
             truncate: false,
 
             kind: Kind::Table,
@@ -52,7 +52,6 @@ impl Settings {
             sort: SortBy::Time,
             order: Order::Ascending,
 
-            // group: Group::FattyAcid,
             radius_of_points: 2,
             legend: true,
         }
@@ -126,7 +125,8 @@ impl Settings {
                 ui.end_row();
 
                 // Logarithmic
-                ui.label(ui.localize("logarithmic"));
+                ui.label(ui.localize("logarithm-of-the-retention-time"))
+                    .on_hover_localized("logarithm-of-the-retention-time.hover");
                 ui.checkbox(&mut self.logarithmic, "");
                 ui.end_row();
 
@@ -290,7 +290,7 @@ pub(crate) struct Filter {
 }
 
 impl Filter {
-    pub const fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             fatty_acids: Vec::new(),
             onset_temperatures: Vec::new(),
@@ -312,7 +312,7 @@ impl Hash for Filter {
 }
 
 impl Filter {
-    fn show(&mut self, ui: &mut Ui, data_frame: &DataFrame) -> PolarsResult<()> {
+    pub(crate) fn show(&mut self, ui: &mut Ui, data_frame: &DataFrame) -> PolarsResult<()> {
         // Onset temperature filter
         ui.label(ui.localize("filter-by-onset-temperature"))
             .on_hover_localized("filter-by-onset-temperature.hover");

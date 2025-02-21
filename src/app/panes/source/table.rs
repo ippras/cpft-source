@@ -1,6 +1,6 @@
 use super::{ID_SOURCE, Settings, State};
 use crate::app::panes::{MARGIN, widgets::float::FloatValue};
-use egui::{Frame, Grid, Id, Margin, TextStyle, TextWrapMode, Ui};
+use egui::{Color32, Frame, Grid, Id, Margin, TextStyle, TextWrapMode, Ui};
 use egui_l20n::{ResponseExt, UiExt};
 use egui_phosphor::regular::HASH;
 use egui_table::{
@@ -182,7 +182,15 @@ impl TableView<'_> {
             (row, mode::ONSET) => {
                 let mode = self.data_frame["Mode"].struct_()?;
                 let onset_temperature = mode.field_by_name("OnsetTemperature")?;
-                ui.label(onset_temperature.str_value(row)?);
+                ui.label(onset_temperature.str_value(row)?)
+                    .on_hover_ui(|ui| {
+                        let dead_time = self.data_frame["DeadTime"]
+                            .f64()
+                            .unwrap()
+                            .get(row)
+                            .expect("DeadTime column not found");
+                        ui.label(dead_time.to_string());
+                    });
             }
             (row, mode::STEP) => {
                 let mode = self.data_frame["Mode"].struct_()?;
@@ -200,6 +208,13 @@ impl TableView<'_> {
                 let absolute = retention_time.field_by_name("Absolute")?;
                 let absolute = absolute.struct_()?;
                 let mean = absolute.field_by_name("Mean")?;
+                if let Some(sd) = absolute.field_by_name("StandardDeviation")?.f64()?.get(row) {
+                    if sd > 0.1 {
+                        ui.visuals_mut().override_text_color = Some(Color32::RED);
+                    } else if sd > 0.05 {
+                        ui.visuals_mut().override_text_color = Some(Color32::YELLOW);
+                    }
+                }
                 ui.add(
                     FloatValue::new(mean.f64()?.get(row)).precision(Some(self.settings.precision)),
                 )

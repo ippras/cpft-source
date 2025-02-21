@@ -1,9 +1,6 @@
-use crate::app::panes::{
-    distance::settings::{Settings, SortByDistance},
-    source::settings::Order,
-};
 use egui::util::cache::{ComputerMut, FrameCache};
 use polars::prelude::*;
+use polars_ext::ExprExt;
 use std::hash::{Hash, Hasher};
 
 /// Distance computed
@@ -20,102 +17,114 @@ impl Computer {
         lazy_frame = lazy_frame
             .clone()
             .select([
-                as_struct(vec![col("FattyAcid"), col("Mode")]).alias("From"),
-                col("RetentionTime")
-                    .struct_()
-                    .field_by_name("Absolute")
-                    .struct_()
-                    .field_by_name("Mean")
-                    .alias("FromTime"),
-                col("ChainLength")
-                    .struct_()
-                    .field_by_name("EquivalentChainLength")
-                    .alias("FromECL"),
+                col("Mode").hash().alias("LeftHash"),
+                as_struct(vec![
+                    col("FattyAcid"),
+                    col("RetentionTime")
+                        .struct_()
+                        .field_by_name("Absolute")
+                        .struct_()
+                        .field_by_name("Mean")
+                        .name()
+                        .keep(),
+                    col("ChainLength")
+                        .struct_()
+                        .field_by_name("EquivalentChainLength"),
+                ])
+                .alias("From"),
+                col("Mode"),
+                col("DeadTime"),
             ])
             .with_row_index("LeftIndex", None)
             .join_builder()
             .with(
                 lazy_frame
                     .select([
-                        as_struct(vec![col("FattyAcid"), col("Mode")]).alias("To"),
-                        col("RetentionTime")
-                            .struct_()
-                            .field_by_name("Absolute")
-                            .struct_()
-                            .field_by_name("Mean")
-                            .alias("ToTime"),
-                        col("ChainLength")
-                            .struct_()
-                            .field_by_name("EquivalentChainLength")
-                            .alias("ToECL"),
+                        col("Mode").hash().alias("RightHash"),
+                        as_struct(vec![
+                            col("FattyAcid"),
+                            col("RetentionTime")
+                                .struct_()
+                                .field_by_name("Absolute")
+                                .struct_()
+                                .field_by_name("Mean")
+                                .name()
+                                .keep(),
+                            col("ChainLength")
+                                .struct_()
+                                .field_by_name("EquivalentChainLength"),
+                        ])
+                        .alias("To"),
                     ])
                     .with_row_index("RightIndex", None),
             )
             .join_where(vec![
                 // Same modes
-                col("From")
-                    .struct_()
-                    .field_by_name("Mode")
-                    .struct_()
-                    .field_by_name("OnsetTemperature")
-                    .eq(col("To")
-                        .struct_()
-                        .field_by_name("Mode")
-                        .struct_()
-                        .field_by_name("OnsetTemperature"))
-                    .and(
-                        col("From")
-                            .struct_()
-                            .field_by_name("Mode")
-                            .struct_()
-                            .field_by_name("TemperatureStep")
-                            .eq(col("To")
-                                .struct_()
-                                .field_by_name("Mode")
-                                .struct_()
-                                .field_by_name("TemperatureStep")),
-                    ),
+                col("LeftHash").eq(col("RightHash")),
                 // Fatty asids not equals combination
                 col("LeftIndex").lt(col("RightIndex")),
             ]);
-        // Cache
+        // Select
         lazy_frame = lazy_frame
             .select([
-                col("From").struct_().field_by_name("Mode").alias("Mode"),
-                col("From")
-                    .struct_()
-                    .field_by_name("FattyAcid")
-                    .name()
-                    .keep(),
-                col("To").struct_().field_by_name("FattyAcid").name().keep(),
+                col("Mode"),
+                col("DeadTime"),
                 as_struct(vec![
-                    col("FromTime").alias("From"),
-                    col("ToTime").alias("To"),
-                    (col("ToTime") - col("FromTime"))
-                        .over([col("From").struct_().field_by_name("Mode")])
-                        .alias("Distance"),
+                    col("From")
+                        .struct_()
+                        .field_by_name("FattyAcid")
+                        .name()
+                        .keep(),
+                    col("To").struct_().field_by_name("FattyAcid").name().keep(),
+                ])
+                .alias("FattyAcid"),
+                as_struct(vec![
+                    col("From")
+                        .struct_()
+                        .field_by_name("RetentionTime")
+                        .name()
+                        .keep(),
+                    col("To")
+                        .struct_()
+                        .field_by_name("RetentionTime")
+                        .name()
+                        .keep(),
+                    (col("To").struct_().field_by_name("RetentionTime")
+                        - col("From").struct_().field_by_name("RetentionTime"))
+                    .over([col("Mode")])
+                    .alias("Delta"),
                 ])
                 .alias("RetentionTime"),
                 as_struct(vec![
-                    col("FromECL").alias("From"),
-                    col("ToECL").alias("To"),
-                    (col("ToECL") - col("FromECL"))
-                        .over([col("From").struct_().field_by_name("Mode")])
-                        .alias("Distance"),
+                    col("From")
+                        .struct_()
+                        .field_by_name("EquivalentChainLength")
+                        .name()
+                        .keep(),
+                    col("To")
+                        .struct_()
+                        .field_by_name("EquivalentChainLength")
+                        .name()
+                        .keep(),
+                    (col("To").struct_().field_by_name("EquivalentChainLength")
+                        - col("From").struct_().field_by_name("EquivalentChainLength"))
+                    .over([col("Mode")])
+                    .alias("Delta"),
                 ])
                 .alias("EquivalentChainLength"),
+                ((col("From").struct_().field_by_name("RetentionTime") - col("DeadTime"))
+                    / (col("To").struct_().field_by_name("RetentionTime") - col("DeadTime"))
+                        .over([col("Mode")]))
+                .alias("Alpha"),
             ])
             .with_column(
-                (col("RetentionTime")
-                    .struct_()
-                    .field_by_name("Distance")
-                    .pow(2)
+                (col("RetentionTime").struct_().field_by_name("Delta").pow(2)
                     + col("EquivalentChainLength")
                         .struct_()
-                        .field_by_name("Distance")
+                        .field_by_name("Delta")
                         .pow(2))
                 .sqrt()
-                .alias("Distance"),
+                .alias("EuclideanDistance"),
             );
         lazy_frame.collect()
     }
@@ -131,20 +140,13 @@ impl ComputerMut<Key<'_>, DataFrame> for Computer {
 #[derive(Clone, Copy, Debug)]
 pub struct Key<'a> {
     pub(crate) data_frame: &'a DataFrame,
-    pub(crate) settings: &'a Settings,
+    pub(crate) hash: u64,
 }
 
 impl Hash for Key<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.settings.filter_onset_temperature.hash(state);
-        self.settings.filter_temperature_step.hash(state);
-        self.settings.interpolation.hash(state);
-
-        self.settings.filter.hash(state);
-        self.settings.sort.hash(state);
-        self.settings.order.hash(state);
+        self.hash.hash(state);
     }
 }
 
 pub(super) mod filtered;
-pub(super) mod unique;

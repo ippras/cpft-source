@@ -2,35 +2,15 @@ use super::table::LEN;
 use crate::{
     app::{
         MAX_PRECISION,
-        computers::{DistanceUniqueComputed, DistanceUniqueKey},
-        panes::source::settings::Order,
+        panes::source::settings::{Filter, Order},
     },
     localization::Text,
-    special::data_frame::DataFrameExt as _,
-    utils::VecExt,
 };
-use egui::{
-    ComboBox, Grid, PopupCloseBehavior, RichText, Slider, TextWrapMode, Ui, WidgetText,
-    emath::Float,
-};
+use egui::{ComboBox, Grid, RichText, Slider, Ui};
 use egui_ext::LabeledSeparator;
 use egui_l20n::{ResponseExt, UiExt as _};
-use egui_phosphor::regular::{FUNNEL, FUNNEL_X};
-use lipid::{
-    fatty_acid::display::{COMMON, DisplayWithOptions as _},
-    prelude::*,
-};
 use polars::prelude::*;
-use polars_utils::format_list_truncated;
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::{self, Display, Formatter},
-    hash::{Hash, Hasher},
-};
-use uom::si::{
-    f32::Time,
-    time::{Units, millisecond, minute, second},
-};
 
 /// Settings
 #[derive(Clone, Debug, Deserialize, Hash, PartialEq, Serialize)]
@@ -40,13 +20,8 @@ pub(crate) struct Settings {
     pub(crate) sticky: usize,
     pub(crate) truncate: bool,
 
-    pub(crate) sort: SortByDistance,
-    pub(crate) order: Order,
-
+    pub(crate) sort: Sort,
     pub(crate) filter: Filter,
-    pub(crate) interpolation: Interpolation,
-    pub(crate) filter_onset_temperature: Option<i32>,
-    pub(crate) filter_temperature_step: Option<i32>,
 }
 
 impl Settings {
@@ -54,15 +29,10 @@ impl Settings {
         Self {
             precision: 2,
             resizable: false,
-            sticky: 1,
+            sticky: 0,
             truncate: false,
-            sort: SortByDistance::Ecl,
-            order: Order::Descending,
-
+            sort: Sort::new(),
             filter: Filter::new(),
-            interpolation: Interpolation::new(),
-            filter_onset_temperature: None,
-            filter_temperature_step: None,
         }
     }
 
@@ -88,25 +58,6 @@ impl Settings {
             ui.labeled_separator(RichText::new(ui.localize("filter")).heading());
             ui.end_row();
 
-            // ui.label("Interpolation");
-            ui.label(ui.localize("filter-by-onset-temperature"))
-                .on_hover_localized("filter-by-onset-temperature.hover");
-            ui.add(Slider::new(
-                &mut self.interpolation.onset_temperature,
-                data_frame.mode().onset_temperature_range(),
-            ));
-            ui.end_row();
-
-            ui.label(ui.localize("filter-by-temperature-step"))
-                .on_hover_localized("filter-by-temperature-step.hover");
-            ui.add(Slider::new(
-                &mut self.interpolation.temperature_step,
-                data_frame.mode().temperature_step_range(),
-            ));
-            ui.end_row();
-
-            ui.label(ui.localize("filter-by-fatty-acids"))
-                .on_hover_localized("filter-by-fatty-acids.hover");
             self.filter.show(ui, data_frame)?;
             ui.end_row();
 
@@ -115,54 +66,7 @@ impl Settings {
             ui.labeled_separator(RichText::new(ui.localize("sort-by-distance")).heading());
             ui.end_row();
 
-            ui.label(ui.localize("sort-by-distance"))
-                .on_hover_localized("sort-by-distance.hover");
-            ComboBox::from_id_salt(ui.next_auto_id())
-                .selected_text(ui.localize(self.sort.text()))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut self.sort,
-                        SortByDistance::RetentionTime,
-                        ui.localize(SortByDistance::RetentionTime.text()),
-                    )
-                    .on_hover_localized(SortByDistance::RetentionTime.hover_text());
-                    ui.selectable_value(
-                        &mut self.sort,
-                        SortByDistance::Ecl,
-                        ui.localize(SortByDistance::Ecl.text()),
-                    )
-                    .on_hover_localized(SortByDistance::Ecl.hover_text());
-                    ui.selectable_value(
-                        &mut self.sort,
-                        SortByDistance::Euclidean,
-                        ui.localize(SortByDistance::Euclidean.text()),
-                    )
-                    .on_hover_localized(SortByDistance::Euclidean.hover_text());
-                })
-                .response
-                .on_hover_localized(self.sort.hover_text());
-            ui.end_row();
-
-            // Order
-            ui.label(ui.localize("order"));
-            ComboBox::from_id_salt(ui.next_auto_id())
-                .selected_text(ui.localize(self.order.text()))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut self.order,
-                        Order::Ascending,
-                        ui.localize(Order::Ascending.text()),
-                    )
-                    .on_hover_localized(Order::Ascending.hover_text());
-                    ui.selectable_value(
-                        &mut self.order,
-                        Order::Descending,
-                        ui.localize(Order::Descending.text()),
-                    )
-                    .on_hover_localized(Order::Descending.hover_text());
-                })
-                .response
-                .on_hover_localized(self.order.hover_text());
+            self.sort.show(ui);
             ui.end_row();
             Ok(())
         });
@@ -175,211 +79,262 @@ impl Default for Settings {
     }
 }
 
-/// Filter
-#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize)]
-pub(crate) struct Filter {
-    pub(crate) fatty_acids: Vec<FattyAcid>,
-}
-
-impl Filter {
-    pub fn new() -> Self {
-        Self {
-            fatty_acids: Vec::new(),
-        }
-    }
-}
-
-impl Filter {
-    fn show(&mut self, ui: &mut Ui, data_frame: &DataFrame) -> PolarsResult<()> {
-        let text = format_list_truncated!(
-            self.fatty_acids
-                .iter()
-                .map(|fatty_acid| fatty_acid.display(COMMON)),
-            2
-        );
-        let inner_response = ComboBox::from_id_salt("FattyAcidsFilter")
-            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-            .selected_text(text)
-            .show_ui(ui, |ui| -> PolarsResult<()> {
-                let fatty_acids = data_frame["FattyAcid"]
-                    .unique()?
-                    .sort(Default::default())?
-                    .fa();
-                for index in 0..fatty_acids.len() {
-                    let Some(fatty_acid) = fatty_acids.get(index)? else {
-                        continue;
-                    };
-                    let checked = self.fatty_acids.contains(&fatty_acid);
-                    let response = ui
-                        .selectable_label(checked, format!("{:#}", (&fatty_acid).display(COMMON)));
-                    if response.clicked() {
-                        if checked {
-                            self.fatty_acids.remove_by_value(&fatty_acid);
-                        } else {
-                            self.fatty_acids.push(fatty_acid);
-                        }
-                    }
-                    response.context_menu(|ui| {
-                        if ui.button(format!("{FUNNEL} Select all")).clicked() {
-                            self.fatty_acids = fatty_acids.clone().into_iter().flatten().collect();
-                            ui.close_menu();
-                        }
-                        if ui.button(format!("{FUNNEL_X} Unselect all")).clicked() {
-                            self.fatty_acids = Vec::new();
-                            ui.close_menu();
-                        }
-                    });
-                }
-                Ok(())
-            });
-        inner_response.inner.transpose()?;
-        inner_response.response.on_hover_ui(|ui| {
-            ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
-            ui.label(self.fatty_acids.len().to_string());
-        });
-        Ok(())
-    }
-}
-
-/// Interpolation
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub(crate) struct Interpolation {
-    pub(crate) onset_temperature: f64,
-    pub(crate) temperature_step: f64,
-}
-
-impl Interpolation {
-    pub const fn new() -> Self {
-        Self {
-            onset_temperature: 0.0,
-            temperature_step: 0.0,
-        }
-    }
-}
-
-impl Hash for Interpolation {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.onset_temperature.ord().hash(state);
-        self.temperature_step.ord().hash(state);
-    }
-}
-
-/// Sort by distance
+/// Sort
 #[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
-pub(crate) enum SortByDistance {
-    Ecl,
-    Euclidean,
-    RetentionTime,
+pub(crate) struct Sort {
+    pub(crate) aggregation: Aggregation,
+    pub(crate) by: SortBy,
+    pub(crate) order: Order,
 }
 
-impl Text for SortByDistance {
+impl Sort {
+    fn new() -> Self {
+        Self {
+            aggregation: Aggregation::Maximum,
+            by: SortBy::Value,
+            order: Order::Descending,
+        }
+    }
+
+    fn show(&mut self, ui: &mut Ui) {
+        ui.label(ui.localize("sort-by-distance"))
+            .on_hover_localized("sort-by-distance.hover");
+        ComboBox::from_id_salt(ui.next_auto_id())
+            .selected_text(ui.localize(self.by.text()))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.by, SortBy::Key, ui.localize(SortBy::Key.text()))
+                    .on_hover_localized(SortBy::Key.hover_text());
+                ui.selectable_value(
+                    &mut self.by,
+                    SortBy::Value,
+                    ui.localize(SortBy::Value.text()),
+                )
+                .on_hover_localized(SortBy::Value.hover_text());
+            })
+            .response
+            .on_hover_localized(self.by.hover_text());
+        ui.end_row();
+
+        // Aggregation
+        ui.label(ui.localize("sort-by-aggregation"))
+            .on_hover_localized("sort-by-aggregation.hover");
+        let enabled = self.by == SortBy::Value;
+        ui.add_enabled_ui(enabled, |ui| {
+            ComboBox::from_id_salt(ui.next_auto_id())
+                .selected_text(ui.localize(self.aggregation.text()))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut self.aggregation,
+                        Aggregation::Maximum,
+                        ui.localize(Aggregation::Maximum.text()),
+                    )
+                    .on_hover_localized(Aggregation::Maximum.hover_text());
+                    ui.selectable_value(
+                        &mut self.aggregation,
+                        Aggregation::Median,
+                        ui.localize(Aggregation::Median.text()),
+                    )
+                    .on_hover_localized(Aggregation::Median.hover_text());
+                    ui.selectable_value(
+                        &mut self.aggregation,
+                        Aggregation::Minimum,
+                        ui.localize(Aggregation::Minimum.text()),
+                    )
+                    .on_hover_localized(Aggregation::Minimum.hover_text());
+                })
+                .response
+                .on_hover_localized(self.aggregation.hover_text());
+        })
+        .response
+        .on_disabled_hover_text("Used only for sort by value");
+        ui.end_row();
+
+        // Order
+        ui.label(ui.localize("order"));
+        ComboBox::from_id_salt(ui.next_auto_id())
+            .selected_text(ui.localize(self.order.text()))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut self.order,
+                    Order::Ascending,
+                    ui.localize(Order::Ascending.text()),
+                )
+                .on_hover_localized(Order::Ascending.hover_text());
+                ui.selectable_value(
+                    &mut self.order,
+                    Order::Descending,
+                    ui.localize(Order::Descending.text()),
+                )
+                .on_hover_localized(Order::Descending.hover_text());
+            })
+            .response
+            .on_hover_localized(self.order.hover_text());
+    }
+}
+
+/// Sort by
+#[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
+pub(crate) enum SortBy {
+    Key,
+    Value,
+}
+
+impl Text for SortBy {
     fn text(&self) -> &'static str {
         match self {
-            Self::Ecl => "sort-by-equivalent-chain-length-distance",
-            Self::Euclidean => "sort-by-euclidean-distance",
-            Self::RetentionTime => "sort-by-retention-time-distance",
+            Self::Key => "sort-by-key",
+            Self::Value => "sort-by-value",
         }
     }
 
     fn hover_text(&self) -> &'static str {
         match self {
-            Self::Ecl => "sort-by-equivalent-chain-length-distance.hover",
-            Self::Euclidean => "sort-by-euclidean-distance.hover",
-            Self::RetentionTime => "sort-by-retention-time-distance.hover",
+            Self::Key => "sort-by-key.hover",
+            Self::Value => "sort-by-value.hover",
         }
     }
 }
 
-/// Retention time settings
-#[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
-pub(crate) struct RetentionTime {
-    pub(crate) precision: usize,
-    pub(crate) units: TimeUnits,
-}
-
-impl RetentionTime {
-    pub(crate) fn format(self, value: f32) -> RetentionTimeFormat {
-        RetentionTimeFormat {
-            value,
-            precision: Some(self.precision),
-            units: self.units,
-        }
-    }
-}
-
-impl Default for RetentionTime {
-    fn default() -> Self {
-        Self {
-            precision: 2,
-            units: Default::default(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct RetentionTimeFormat {
-    value: f32,
-    precision: Option<usize>,
-    units: TimeUnits,
-}
-
-impl RetentionTimeFormat {
-    pub(crate) fn precision(self, precision: Option<usize>) -> Self {
-        Self { precision, ..self }
-    }
-}
-
-impl Display for RetentionTimeFormat {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let time = Time::new::<millisecond>(self.value as _);
-        let value = match self.units {
-            TimeUnits::Millisecond => time.get::<millisecond>(),
-            TimeUnits::Second => time.get::<second>(),
-            TimeUnits::Minute => time.get::<minute>(),
-        };
-        if let Some(precision) = self.precision {
-            write!(f, "{value:.precision$}")
-        } else {
-            write!(f, "{value}")
-        }
-    }
-}
-
-impl From<RetentionTimeFormat> for WidgetText {
-    fn from(value: RetentionTimeFormat) -> Self {
-        value.to_string().into()
-    }
-}
-
-/// Time units
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub enum TimeUnits {
-    Millisecond,
+/// Sort aggregation
+#[derive(Clone, Copy, Debug, Default, Deserialize, Hash, PartialEq, Serialize)]
+pub(crate) enum Aggregation {
     #[default]
-    Second,
-    Minute,
+    Maximum,
+    Median,
+    Minimum,
 }
 
-impl TimeUnits {
-    pub fn abbreviation(&self) -> &'static str {
-        Units::from(*self).abbreviation()
+impl Text for Aggregation {
+    fn text(&self) -> &'static str {
+        match self {
+            Self::Maximum => "sort-by-maximum",
+            Self::Median => "sort-by-median",
+            Self::Minimum => "sort-by-minimum",
+        }
     }
 
-    pub fn singular(&self) -> &'static str {
-        Units::from(*self).singular()
-    }
-
-    pub fn plural(&self) -> &'static str {
-        Units::from(*self).plural()
-    }
-}
-
-impl From<TimeUnits> for Units {
-    fn from(value: TimeUnits) -> Self {
-        match value {
-            TimeUnits::Millisecond => Units::millisecond(millisecond),
-            TimeUnits::Second => Units::second(second),
-            TimeUnits::Minute => Units::minute(minute),
+    fn hover_text(&self) -> &'static str {
+        match self {
+            Self::Maximum => "sort-by-maximum.hover",
+            Self::Median => "sort-by-median.hover",
+            Self::Minimum => "sort-by-minimum.hover",
         }
     }
 }
+
+// /// Interpolation
+// #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+// pub(crate) struct Interpolation {
+//     pub(crate) onset_temperature: f64,
+//     pub(crate) temperature_step: f64,
+// }
+
+// impl Interpolation {
+//     pub fn new() -> Self {
+//         Self {
+//             onset_temperature: 0.0,
+//             temperature_step: 0.0,
+//         }
+//     }
+// }
+
+// impl Hash for Interpolation {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.onset_temperature.ord().hash(state);
+//         self.temperature_step.ord().hash(state);
+//     }
+// }
+
+// /// Retention time settings
+// #[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
+// pub(crate) struct RetentionTime {
+//     pub(crate) precision: usize,
+//     pub(crate) units: TimeUnits,
+// }
+
+// impl RetentionTime {
+//     pub(crate) fn format(self, value: f32) -> RetentionTimeFormat {
+//         RetentionTimeFormat {
+//             value,
+//             precision: Some(self.precision),
+//             units: self.units,
+//         }
+//     }
+// }
+
+// impl Default for RetentionTime {
+//     fn default() -> Self {
+//         Self {
+//             precision: 2,
+//             units: Default::default(),
+//         }
+//     }
+// }
+
+// #[derive(Clone, Copy, Debug, Default)]
+// pub(crate) struct RetentionTimeFormat {
+//     value: f32,
+//     precision: Option<usize>,
+//     units: TimeUnits,
+// }
+
+// impl RetentionTimeFormat {
+//     pub(crate) fn precision(self, precision: Option<usize>) -> Self {
+//         Self { precision, ..self }
+//     }
+// }
+
+// impl Display for RetentionTimeFormat {
+//     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+//         let time = Time::new::<millisecond>(self.value as _);
+//         let value = match self.units {
+//             TimeUnits::Millisecond => time.get::<millisecond>(),
+//             TimeUnits::Second => time.get::<second>(),
+//             TimeUnits::Minute => time.get::<minute>(),
+//         };
+//         if let Some(precision) = self.precision {
+//             write!(f, "{value:.precision$}")
+//         } else {
+//             write!(f, "{value}")
+//         }
+//     }
+// }
+
+// impl From<RetentionTimeFormat> for WidgetText {
+//     fn from(value: RetentionTimeFormat) -> Self {
+//         value.to_string().into()
+//     }
+// }
+
+// /// Time units
+// #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+// pub enum TimeUnits {
+//     Millisecond,
+//     #[default]
+//     Second,
+//     Minute,
+// }
+
+// impl TimeUnits {
+//     pub fn abbreviation(&self) -> &'static str {
+//         Units::from(*self).abbreviation()
+//     }
+
+//     pub fn singular(&self) -> &'static str {
+//         Units::from(*self).singular()
+//     }
+
+//     pub fn plural(&self) -> &'static str {
+//         Units::from(*self).plural()
+//     }
+// }
+
+// impl From<TimeUnits> for Units {
+//     fn from(value: TimeUnits) -> Self {
+//         match value {
+//             TimeUnits::Millisecond => Units::millisecond(millisecond),
+//             TimeUnits::Second => Units::second(second),
+//             TimeUnits::Minute => Units::minute(minute),
+//         }
+//     }
+// }

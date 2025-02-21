@@ -16,7 +16,6 @@ use lipid::{
     prelude::*,
 };
 use polars::prelude::*;
-use polars_utils::{format_list_container_truncated, format_list_truncated};
 use std::fmt::Write;
 use tracing::error;
 

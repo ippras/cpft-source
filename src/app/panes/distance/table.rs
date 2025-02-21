@@ -16,7 +16,7 @@ use std::ops::Range;
 const INDEX: Range<usize> = 0..1;
 const MODE: Range<usize> = INDEX.end..INDEX.end + 2;
 const FA: Range<usize> = MODE.end..MODE.end + 2;
-const DISTANCE: Range<usize> = FA.end..FA.end + 3;
+const DISTANCE: Range<usize> = FA.end..FA.end + 4;
 pub(super) const LEN: usize = DISTANCE.end;
 
 const TOP: &[Range<usize>] = &[INDEX, MODE, FA, DISTANCE];
@@ -109,7 +109,7 @@ impl TableView<'_> {
             (1, fatty_acid::TO) => {
                 ui.heading(ui.localize("to"));
             }
-            (1, distance::TIME) => {
+            (1, distance::RETENTION_TIME) => {
                 ui.heading(ui.localize("retention-time-distance.abbreviation"))
                     .on_hover_localized("retention-time-distance")
                     .on_hover_localized("retention-time-distance.hover");
@@ -120,8 +120,14 @@ impl TableView<'_> {
                     .on_hover_localized("equivalent-chain-length-distance.hover");
             }
             (1, distance::EUCLIDEAN) => {
-                ui.heading(ui.localize("euclidean-distance"))
+                ui.heading(ui.localize("euclidean-distance.abbreviation"))
+                    .on_hover_localized("euclidean-distance")
                     .on_hover_localized("euclidean-distance.hover");
+            }
+            (1, distance::ALPHA) => {
+                ui.heading(ui.localize("alpha.abbreviation"))
+                    .on_hover_localized("alpha")
+                    .on_hover_localized("alpha.hover");
             }
             _ => {}
         }
@@ -148,22 +154,32 @@ impl TableView<'_> {
                 ui.label(temperature_step.str_value(row)?);
             }
             (row, fatty_acid::FROM) => {
-                let fatty_acids = self.data_frame["From"].fa();
-                let fatty_acid = fatty_acids.get(row)?.unwrap();
-                let text = format!("{:#}", fatty_acid.display(COMMON));
+                let fatty_acid = self.data_frame["FattyAcid"]
+                    .struct_()?
+                    .field_by_name("From")?
+                    .fa();
+                let Some(from) = fatty_acid.get(row)? else {
+                    polars_bail!(NoData: "FattyAcid/From[{row}]");
+                };
+                let text = format!("{:#}", from.display(COMMON));
                 ui.label(&text).on_hover_text(text);
             }
             (row, fatty_acid::TO) => {
-                let fatty_acids = self.data_frame["To"].fa();
-                let fatty_acid = fatty_acids.get(row)?.unwrap();
-                let text = format!("{:#}", fatty_acid.display(COMMON));
+                let fatty_acid = self.data_frame["FattyAcid"]
+                    .struct_()?
+                    .field_by_name("To")?
+                    .fa();
+                let Some(to) = fatty_acid.get(row)? else {
+                    polars_bail!(NoData: "FattyAcid/To[{row}]");
+                };
+                let text = format!("{:#}", to.display(COMMON));
                 ui.label(&text).on_hover_text(text);
             }
-            (row, distance::TIME) => {
-                let retention_time = self.data_frame["RetentionTime"].struct_().unwrap();
-                let distance = retention_time.field_by_name("Distance").unwrap();
+            (row, distance::RETENTION_TIME) => {
+                let retention_time = self.data_frame["RetentionTime"].struct_()?;
+                let delta = retention_time.field_by_name("Delta")?;
                 ui.add(
-                    FloatValue::new(distance.f64().unwrap().get(row))
+                    FloatValue::new(delta.f64()?.get(row))
                         .precision(Some(self.settings.precision))
                         .hover(),
                 )
@@ -178,10 +194,10 @@ impl TableView<'_> {
                 });
             }
             (row, distance::ECL) => {
-                let ecl = self.data_frame["EquivalentChainLength"].struct_().unwrap();
-                let distance = ecl.field_by_name("Distance").unwrap();
+                let ecl = self.data_frame["EquivalentChainLength"].struct_()?;
+                let delta = ecl.field_by_name("Delta")?;
                 ui.add(
-                    FloatValue::new(distance.f64().unwrap().get(row))
+                    FloatValue::new(delta.f64()?.get(row))
                         .precision(Some(self.settings.precision))
                         .hover(),
                 )
@@ -196,12 +212,45 @@ impl TableView<'_> {
                 });
             }
             (row, distance::EUCLIDEAN) => {
-                let distance = self.data_frame["Distance"].f64().unwrap();
+                let distance = self.data_frame["EuclideanDistance"].f64()?;
                 ui.add(
                     FloatValue::new(distance.get(row))
                         .precision(Some(self.settings.precision))
                         .hover(),
                 );
+            }
+            (row, distance::ALPHA) => {
+                let alpha = self.data_frame["Alpha"].f64()?;
+                let response = ui.add(
+                    FloatValue::new(alpha.get(row))
+                        .precision(Some(self.settings.precision))
+                        .hover(),
+                );
+                response.on_hover_ui(|ui| {
+                    (|| -> PolarsResult<()> {
+                        // ui.spacing_mut().item_spacing.x = 0.0;
+                        let retention_time = self.data_frame["RetentionTime"].struct_()?;
+                        let dead_time = self.data_frame["DeadTime"].get(row)?.str_value();
+                        let from = retention_time.field_by_name("From")?;
+                        let to = retention_time.field_by_name("To")?;
+                        let from = from.str_value(row)?;
+                        let to = to.str_value(row)?;
+                        ui.horizontal(|ui| {
+                            let math =
+                                format!(r#"$\frac{{{to}-{dead_time}}}{{{from}-{dead_time}}}$"#);
+                            ui.label(math);
+                            // ui.label(to);
+                            // ui.label("-");
+                            // ui.label(&*dead_time);
+                            // ui.label("/");
+                            // ui.label(from);
+                            // ui.label("-");
+                            // ui.label(dead_time);
+                        });
+                        Ok(())
+                    })()
+                    .unwrap()
+                });
             }
             _ => {}
         }
@@ -249,7 +298,8 @@ mod fatty_acid {
 mod distance {
     use super::*;
 
-    pub(super) const TIME: Range<usize> = DISTANCE.start..DISTANCE.start + 1;
-    pub(super) const ECL: Range<usize> = TIME.end..TIME.end + 1;
+    pub(super) const RETENTION_TIME: Range<usize> = DISTANCE.start..DISTANCE.start + 1;
+    pub(super) const ECL: Range<usize> = RETENTION_TIME.end..RETENTION_TIME.end + 1;
     pub(super) const EUCLIDEAN: Range<usize> = ECL.end..ECL.end + 1;
+    pub(super) const ALPHA: Range<usize> = EUCLIDEAN.end..EUCLIDEAN.end + 1;
 }

@@ -13,21 +13,22 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-const ID_SOURCE: &str = "Source";
+const ID_SOURCE: &str = "Distance";
 
 /// Distance pane
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct Pane {
-    pub(crate) source: MetaDataFrame,
-    pub(crate) target: DataFrame,
-    pub(crate) settings: Settings,
+    source: Source,
+    target: DataFrame,
+    settings: Settings,
     state: State,
 }
 
 impl Pane {
     pub(crate) fn new(frame: MetaDataFrame) -> Self {
+        let hash = hash(&frame);
         Self {
-            source: frame,
+            source: Source { frame, hash },
             target: DataFrame::empty(),
             settings: Settings::new(),
             state: State::new(),
@@ -39,7 +40,7 @@ impl Pane {
     }
 
     pub(crate) fn title(&self) -> String {
-        self.source.meta.title()
+        self.source.frame.meta.title()
     }
 
     pub(super) fn header(&mut self, ui: &mut Ui) -> Response {
@@ -49,7 +50,7 @@ impl Pane {
             .on_hover_text(ui.localize("distance"));
         response |= ui.heading(self.title());
         response = response
-            .on_hover_text(format!("{:x}", self.hash()))
+            .on_hover_text(format!("{:x}", self.source.hash))
             .on_hover_cursor(CursorIcon::Grab);
         ui.separator();
         // Reset
@@ -74,7 +75,7 @@ impl Pane {
         );
         ui.separator();
         // Save
-        let name = format!("{}.distance.ipc", self.source.meta.title());
+        let name = format!("{}.distance.ipc", self.source.frame.meta.title());
         if ui
             .button(RichText::new(FLOPPY_DISK).heading())
             .on_hover_text(&name)
@@ -82,7 +83,7 @@ impl Pane {
         {
             if let Err(error) = save(
                 &name,
-                MetaDataFrame::new(&self.source.meta, &mut self.target),
+                MetaDataFrame::new(&self.source.frame.meta, &mut self.target),
             ) {
                 error!(%error);
             }
@@ -95,10 +96,11 @@ impl Pane {
         self.window(ui);
         self.target = ui.memory_mut(|memory| {
             memory.caches.cache::<DistanceComputed>().get(DistanceKey {
-                data_frame: &self.source.data,
-                settings: &self.settings,
+                data_frame: &self.source.frame.data,
+                hash: self.source.hash,
             })
         });
+        // Filtered
         let data_frame = ui.memory_mut(|memory| {
             memory
                 .caches
@@ -116,13 +118,15 @@ impl Pane {
             .id(ui.auto_id_with(ID_SOURCE))
             .open(&mut self.state.open_settings_window)
             .show(ui.ctx(), |ui| {
-                self.settings.show(ui, &self.source.data);
+                self.settings.show(ui, &self.source.frame.data);
             });
     }
+}
 
-    pub(super) fn hash(&self) -> u64 {
-        hash(&self.source)
-    }
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct Source {
+    frame: MetaDataFrame,
+    hash: u64,
 }
 
 pub(crate) mod settings;

@@ -94,6 +94,8 @@ impl Computer {
                     col("DeltaRetentionTime").alias("Delta"),
                 ])
                 .alias("RetentionTime"),
+                // DeadTime
+                col("DeadTime"),
                 // Temperature
                 col("Temperature"),
                 // Chain length
@@ -157,7 +159,7 @@ impl Hash for Key<'_> {
     }
 }
 
-fn filter(filter: &Filter) -> Option<Expr> {
+pub(super) fn filter(filter: &Filter) -> Option<Expr> {
     let mut expr = None;
     if !filter.onset_temperatures.is_empty() {
         for &onset_temperature in &filter.onset_temperatures {
