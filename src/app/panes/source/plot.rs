@@ -1,17 +1,13 @@
-use crate::app::computers::{SourcePlotValue, source::plot::PointKey};
-
 use super::Settings;
+use crate::app::computers::{SourcePlotValue, plot::IndexKey};
 use egui::Ui;
 use egui_ext::color;
 use egui_l20n::UiExt;
 use egui_plot::{Legend, Line, LineStyle, MarkerShape, Plot, PlotPoint, PlotPoints, Points};
 use itertools::Itertools;
-use lipid::{
-    fatty_acid::{
-        FattyAcidExt as _,
-        display::{COMMON, DisplayWithOptions as _},
-    },
-    prelude::*,
+use lipid::fatty_acid::{
+    FattyAcidExt as _,
+    display::{COMMON, DisplayWithOptions as _},
 };
 use polars::prelude::*;
 use std::fmt::Write;
@@ -52,7 +48,7 @@ impl PlotView<'_> {
         let temperature_step = ui.localize("temperature-step");
         let retention_time = ui.localize("retention-time");
         let equivalent_chain_length = ui.localize("equivalent-chain-length");
-        let points = self.data.points.clone();
+        let points = self.data.index.clone();
         plot = plot
             .x_axis_label(&retention_time)
             .y_axis_label(&equivalent_chain_length)
@@ -61,7 +57,7 @@ impl PlotView<'_> {
                 if !name.is_empty() {
                     writeln!(&mut label, "{name}").ok();
                 }
-                if let Some(values) = points.get(&PointKey::new(*x, *y)) {
+                if let Some(values) = points.get(&IndexKey(PlotPoint::new(*x, *y))) {
                     writeln!(
                         &mut label,
                         "{onset_temperature} = {}",

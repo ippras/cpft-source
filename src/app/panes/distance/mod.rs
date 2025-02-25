@@ -1,4 +1,4 @@
-use self::{settings::Settings, state::State, table::TableView};
+use self::{plot::PlotView, settings::Settings, state::State, table::TableView};
 use super::{source::settings::View, widgets::ViewWidget};
 use crate::{
     app::computers::{
@@ -126,7 +126,7 @@ impl Pane {
                             settings: &self.settings,
                         })
                 });
-                // PlotView::new(points, &self.settings).show(ui)
+                PlotView::new(points, &self.settings.plot).show(ui)
             }
             View::Table => TableView::new(&data_frame, &self.settings, &mut self.state).show(ui),
         };
@@ -150,5 +150,6 @@ struct Source {
 
 pub(crate) mod settings;
 
+mod plot;
 mod state;
 mod table;

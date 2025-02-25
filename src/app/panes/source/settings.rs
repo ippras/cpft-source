@@ -31,7 +31,6 @@ pub(crate) struct Settings {
     pub(crate) sort: SortBy,
     pub(crate) order: Order,
 
-    // pub(crate) group: Group,
     pub(crate) legend: bool,
     pub(crate) radius_of_points: u8,
 }
@@ -242,6 +241,63 @@ impl Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Plot settings
+#[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
+pub(crate) struct PlotSettings {
+    pub(crate) legend: bool,
+    pub(crate) radius_of_points: u8,
+    pub(crate) axes: Axes,
+}
+
+impl PlotSettings {
+    pub(crate) fn new() -> Self {
+        Self {
+            radius_of_points: 2,
+            legend: true,
+            axes: Axes {
+                x: Axis::TemperatureStep,
+                y: Axis::Alpha,
+            },
+        }
+    }
+}
+
+// Plot axes
+#[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
+pub(crate) struct Axes {
+    pub(crate) x: Axis,
+    pub(crate) y: Axis,
+}
+
+/// Plot axis
+#[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Serialize)]
+pub(crate) enum Axis {
+    Alpha,
+    EquivalentChainLength,
+    OnsetTemperature,
+    TemperatureStep,
+}
+
+impl Text for Axis {
+    fn text(&self) -> &'static str {
+        match self {
+            Self::Alpha => "alpha",
+            Self::EquivalentChainLength => "equivalent-chain-length",
+            Self::OnsetTemperature => "onset-temperature",
+            Self::TemperatureStep => "temperature-step",
+        }
+    }
+
+    fn hover_text(&self) -> &'static str {
+        match self {
+            Self::Alpha => "alpha.hover",
+            Self::EquivalentChainLength => "equivalent-chain-length.hover",
+            Self::OnsetTemperature => "onset-temperature.hover",
+            Self::TemperatureStep => "temperature-step.hover",
+        }
     }
 }
 

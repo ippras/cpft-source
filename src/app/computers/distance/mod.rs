@@ -149,5 +149,5 @@ impl Hash for Key<'_> {
     }
 }
 
-pub(super) mod filtered;
-pub(super) mod plot;
+pub(crate) mod filtered;
+pub(crate) mod plot;

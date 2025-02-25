@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 409 409"><rect width="256" height="256" fill="none"/>
+
+<style>
+    @media (prefers-color-scheme: dark) {
+        #logo {
+            filter: invert(1) brightness(2);
+        }
+    }
+    .base {
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 8;
+    }
+    #pentagon {
+        stroke-width: 16;
+    }
+    .chromatogram-animation {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 1000;
+        animation: dash-0-2000 10s linear normal infinite;
+    }
+    @keyframes dash-0-2000 {
+        from { stroke-dashoffset: 2000; }
+        to { stroke-dashoffset: 0; }
+    }
+    .masspectrum-animation {
+        stroke-dasharray: 200;
+        stroke-dashoffset: 0;
+        animation: dash-0-100 1s 1s linear alternate infinite;
+    }
+    @keyframes dash-0-100 {
+        0% { stroke-dashoffset: 150; }
+        25% { stroke-dashoffset: 200; }
+        75% { stroke-dashoffset: 200; }
+        100% { stroke-dashoffset: 150; }
+    }
+    <!-- .masspectrum-animation {
+        y2: 56;
+        animation: y2 1s linear alternate infinite;
+    }
+    @keyframes y2 {
+        from { y2: 6; }
+        to { y2: 50; }
+    } -->
+    <!-- .masspectrum-animation-50 {
+        stroke-dasharray: 50;
+        stroke-dashoffset: 50;
+        animation: dash-0-50 2s linear alternate infinite;
+    }
+    @keyframes dash-0-50 {
+        from {
+            stroke-dashoffset: 50;
+        }
+        to {
+            stroke-dashoffset: 0;
+        }
+    } -->
+</style>
+
+<g id="logo" transform="translate(205, 205)">
+    <!-- Chromatogram -->
+    <polyline id="chromatogram" class="base chromatogram-animation" points="-96,0
+        -72,0 -60,-48 -48,0
+        -8,0 0,-96 8,0
+        16,0 24,-72 32,0
+        48,0 56,-32 64,0
+        96,0"/>
+
+    <!-- Masspectrum -->
+    <g id="masspectrum" class="base">
+        <line x1="-96" y1="16" x2="96" y2="16"/>
+        <g class="base">
+            <line x1="-56" y1="16" x2="-56" y2="56"/>
+            <line x1="-44" y1="16" x2="-44" y2="24" class="masspectrum-animation"/>
+            <line x1="-32" y1="16" x2="-32" y2="48" class="masspectrum-animation"/>
+            <line x1="-16" y1="16" x2="-16" y2="72" class="masspectrum-animation"/>
+            <line x1="20" y1="16" x2="20" y2="24" class="masspectrum-animation"/>
+            <line x1="32" y1="16" x2="32" y2="32" class="masspectrum-animation"/>
+            <line x1="64" y1="16" x2="64" y2="48" class="masspectrum-animation"/>
+        </g>
+    </g>
+    <!-- <polyline id="masspectrum" class="base animation" points="-96,16
+        -56,16 -56,56 -56,16
+        -44,16 -44,24 -44,16
+        -32,16 -32,48 -32,16
+        -16,16 -16,72 -16,16
+        20,16 20,24 20,16
+        32,16 32,32 32,16
+        64,16 64,48 64,16
+        96,16"/> -->
+
+    <!-- Pentagon -->
+    <g id="pentagon" class="base">
+        <g id="edge">
+            <polyline points="-56,96 56,96"/>
+            <polyline points="-72,96 -56,96" transform="rotate(-54 -56,96)"/>
+            <polyline points="56,96 72,96" transform="rotate(54 56,96)"/>
+        </g>
+        <use xlink:href="#edge" transform="rotate(72)"/>
+        <use xlink:href="#edge" transform="rotate(144)"/>
+        <use xlink:href="#edge" transform="rotate(216)"/>
+        <use xlink:href="#edge" transform="rotate(288)"/>
+    </g>
+</g>
+
+</svg>

@@ -42,6 +42,7 @@ polars = { version = "0.46.0", features = [
     "lazy",
     "list_eval",
     "polars-io",
+    "rank",
     "round_series",
     "serde",
     "sign",

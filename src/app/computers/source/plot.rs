@@ -1,14 +1,11 @@
-use crate::app::{
-    MAX_TEMPERATURE,
-    panes::source::settings::{Filter, Group, Order, Settings, SortBy, View},
-};
+use crate::app::{computers::plot::IndexKey, panes::source::settings::Settings};
 use egui::{
-    emath::{Float, OrderedFloat},
+    emath::Float,
     util::cache::{ComputerMut, FrameCache},
 };
-use egui_plot::{Line, PlotPoint, PlotPoints};
-use lipid::{self, prelude::*};
-use polars::prelude::{array::ArrayNameSpace, *};
+use egui_plot::PlotPoint;
+use lipid::prelude::*;
+use polars::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
     hash::{Hash, Hasher},
@@ -79,8 +76,8 @@ impl Computer {
                 };
                 line_points.push(PlotPoint::new(x, y));
                 value
-                    .points
-                    .entry(PointKey::new(x, y))
+                    .index
+                    .entry(IndexKey(PlotPoint::new(x, y)))
                     .or_default()
                     .insert(PointValue {
                         onset_temperature,
@@ -169,7 +166,7 @@ impl Hash for Key<'_> {
 #[derive(Clone, Default)]
 pub(crate) struct Value {
     pub(crate) lines: Lines,
-    pub(crate) points: HashMap<PointKey, HashSet<PointValue>>,
+    pub(crate) index: HashMap<IndexKey, HashSet<PointValue>>,
 }
 
 #[derive(Clone, Default)]
@@ -191,46 +188,6 @@ pub(crate) struct TemperatureStepLine {
 //     pub(crate) temperature_step: f64,
 //     pub(crate) points: Vec<PlotPoint>,
 // }
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct PointKey {
-    pub(crate) retention_time: f64,
-    pub(crate) equivalent_chain_length: f64,
-}
-
-impl PointKey {
-    pub(crate) fn new(retention_time: f64, equivalent_chain_length: f64) -> Self {
-        Self {
-            retention_time,
-            equivalent_chain_length,
-        }
-    }
-}
-
-impl Eq for PointKey {}
-
-impl From<PointKey> for PlotPoint {
-    fn from(value: PointKey) -> Self {
-        PlotPoint {
-            x: value.retention_time,
-            y: value.equivalent_chain_length,
-        }
-    }
-}
-
-impl Hash for PointKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.retention_time.ord().hash(state);
-        self.equivalent_chain_length.ord().hash(state);
-    }
-}
-
-impl PartialEq for PointKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.retention_time.ord() == other.retention_time.ord()
-            && self.equivalent_chain_length.ord() == other.equivalent_chain_length.ord()
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PointValue {

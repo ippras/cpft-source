@@ -2,7 +2,7 @@ use super::table::LEN;
 use crate::{
     app::{
         MAX_PRECISION,
-        panes::source::settings::{Filter, Order, View},
+        panes::source::settings::{Axis, Filter, Order, PlotSettings, View},
     },
     localization::Text,
 };
@@ -24,6 +24,7 @@ pub(crate) struct Settings {
     pub(crate) filter: Filter,
 
     pub(crate) view: View,
+    pub(crate) plot: PlotSettings,
 }
 
 impl Settings {
@@ -36,6 +37,7 @@ impl Settings {
             sort: Sort::new(),
             filter: Filter::new(),
             view: View::Table,
+            plot: PlotSettings::new(),
         }
     }
 
@@ -71,6 +73,56 @@ impl Settings {
 
             self.sort.show(ui);
             ui.end_row();
+
+            if let View::Plot = self.view {
+                // Plot
+                ui.separator();
+                ui.labeled_separator(RichText::new("Plot").heading());
+                ui.end_row();
+
+                // Legend
+                ui.label(ui.localize("legend"));
+                ui.checkbox(&mut self.plot.legend, "");
+                ui.end_row();
+
+                // Radius of points
+                ui.label(ui.localize("radius-of-points"))
+                    .on_hover_localized("radius-of-points.hover");
+                ui.add(Slider::new(&mut self.plot.radius_of_points, 0..=u8::MAX).logarithmic(true));
+                ui.end_row();
+
+                // Plot axes
+                for axis in [&mut self.plot.axes.x, &mut self.plot.axes.y] {
+                    ui.label(ui.localize("plot-axes"));
+                    ComboBox::from_id_salt(ui.next_auto_id())
+                        .selected_text(ui.localize(axis.text()))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(axis, Axis::Alpha, ui.localize(Axis::Alpha.text()))
+                                .on_hover_localized(Axis::Alpha.hover_text());
+                            ui.selectable_value(
+                                axis,
+                                Axis::EquivalentChainLength,
+                                ui.localize(Axis::EquivalentChainLength.text()),
+                            )
+                            .on_hover_localized(Axis::EquivalentChainLength.hover_text());
+                            ui.selectable_value(
+                                axis,
+                                Axis::OnsetTemperature,
+                                ui.localize(Axis::OnsetTemperature.text()),
+                            )
+                            .on_hover_localized(Axis::OnsetTemperature.hover_text());
+                            ui.selectable_value(
+                                axis,
+                                Axis::TemperatureStep,
+                                ui.localize(Axis::TemperatureStep.text()),
+                            )
+                            .on_hover_localized(Axis::TemperatureStep.hover_text());
+                        })
+                        .response
+                        .on_hover_localized(axis.hover_text());
+                    ui.end_row();
+                }
+            }
             Ok(())
         });
     }
